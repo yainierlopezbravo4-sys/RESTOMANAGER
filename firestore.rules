@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "yainierlopezbravo4@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function validString(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+             request.resource.data[field].size() >= minLen &&
+             request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+             email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+             dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+    function isValidUser(data) {
+      return hasRequiredFields(['uid', 'email', 'role', 'displayName', 'createdAt']) &&
+             hasOnlyAllowedFields(['uid', 'email', 'role', 'displayName', 'createdAt', 'password', 'phone', 'address']) &&
+             (data.uid == request.auth.uid || isAdmin()) &&
+             isValidEmail(data.email) &&
+             data.role in ['admin', 'staff'] &&
+             validString('displayName', 1, 100) &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidSale(data) {
+      return hasRequiredFields(['amount', 'platform', 'paymentMethod', 'items', 'timestamp', 'createdBy']) &&
+             data.amount is number && data.amount >= 0 &&
+             data.platform in ['in-store', 'iFood', '99food'] &&
+             data.paymentMethod in ['pix', 'cash', 'ted'] &&
+             (!('pixKeyUsed' in data) || data.pixKeyUsed is string) &&
+             data.items is list &&
+             isValidDateString(data.timestamp) &&
+             data.createdBy == request.auth.uid;
+    }
+
+    function isValidInventoryItem(data) {
+      return hasRequiredFields(['name', 'quantity', 'unit', 'minStock']) &&
+             validString('name', 1, 200) &&
+             data.quantity is number &&
+             validString('unit', 1, 20) &&
+             data.minStock is number;
+    }
+
+    function isValidFinancialRecord(data) {
+      return hasRequiredFields(['type', 'amount', 'description', 'status', 'timestamp']) &&
+             data.type in ['income', 'expense', 'payable', 'receivable'] &&
+             data.amount is number &&
+             validString('description', 1, 500) &&
+             data.status in ['pending', 'paid'] &&
+             isValidDateString(data.timestamp);
+    }
+
+    function isValidPaymentSettings(data) {
+      return hasOnlyAllowedFields(['pixKeys', 'tedAccounts']) &&
+             (!('pixKeys' in data) || data.pixKeys is list) &&
+             (!('tedAccounts' in data) || data.tedAccounts is list);
+    }
+
+    function isValidBusinessSettings(data) {
+      return hasOnlyAllowedFields(['name', 'address', 'phone', 'email', 'taxId']) &&
+             validString('name', 1, 200) &&
+             validString('address', 1, 500) &&
+             validString('phone', 1, 50) &&
+             isValidEmail(data.email) &&
+             validString('taxId', 1, 50);
+    }
+
+    function isValidGeneralSettings(data) {
+      return hasOnlyAllowedFields(['darkMode', 'openSaleOnStart', 'closeOnRestaurantClose']) &&
+             data.darkMode is bool &&
+             data.openSaleOnStart is bool &&
+             data.closeOnRestaurantClose is bool;
+    }
+
+    function isValidNotificationLog(data) {
+      return hasRequiredFields(['type', 'message', 'timestamp']) &&
+             data.type in ['system_open', 'system_close', 'receipt_generated', 'invoice_generated', 'payment_received'] &&
+             data.message is string &&
+             isValidDateString(data.timestamp);
+    }
+
+    function isValidIntegration(data) {
+      return hasRequiredFields(['provider', 'type', 'status']) &&
+             data.provider is string &&
+             data.type in ['government', 'private'] &&
+             data.status in ['active', 'inactive'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isAdmin());
+      allow create: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && (request.resource.data.role == 'staff' || isAdmin());
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin() && userId != request.auth.uid;
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidSale(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /inventory/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() && isValidInventoryItem(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /inventoryTransactions/{txId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAdmin();
+    }
+
+    match /financials/{recordId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() && isValidFinancialRecord(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /closures/{closureId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /settings/{settingId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() && (
+        (settingId == 'payments' && isValidPaymentSettings(request.resource.data)) ||
+        (settingId == 'business' && isValidBusinessSettings(request.resource.data)) ||
+        (settingId == 'general' && isValidGeneralSettings(request.resource.data))
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidNotificationLog(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /integrations/{integrationId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidIntegration(request.resource.data);
+    }
+  }
+}

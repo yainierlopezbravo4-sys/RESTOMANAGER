@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer utilities {
+  @media print {
+    body * {
+      visibility: hidden;
+    }
+    .no-print {
+      display: none !important;
+    }
+    .fixed.inset-0 {
+      position: absolute !important;
+      background: white !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      display: block !important;
+      overflow: visible !important;
+    }
+    .fixed.inset-0 > div {
+      visibility: visible !important;
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      box-shadow: none !important;
+      border: none !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    .fixed.inset-0 > div * {
+      visibility: visible !important;
+    }
+    /* Standard thermal printer width */
+    .max-w-\[350px\] {
+      width: 80mm !important;
+      max-width: 80mm !important;
+    }
+  }
+}
