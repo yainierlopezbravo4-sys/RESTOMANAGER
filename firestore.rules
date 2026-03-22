@@ -100,10 +100,11 @@ service cloud.firestore {
     }
 
     function isValidGeneralSettings(data) {
-      return hasOnlyAllowedFields(['darkMode', 'openSaleOnStart', 'closeOnRestaurantClose']) &&
+      return hasOnlyAllowedFields(['darkMode', 'openSaleOnStart', 'closeOnRestaurantClose', 'isSystemOpen']) &&
              data.darkMode is bool &&
              data.openSaleOnStart is bool &&
-             data.closeOnRestaurantClose is bool;
+             data.closeOnRestaurantClose is bool &&
+             (!('isSystemOpen' in data) || data.isSystemOpen is bool);
     }
 
     function isValidNotificationLog(data) {
