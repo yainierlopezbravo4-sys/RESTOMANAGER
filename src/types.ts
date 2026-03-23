@@ -78,6 +78,7 @@ export interface FinancialRecord {
   amount: number;
   description: string;
   dueDate?: string;
+  invoiceNumber?: string;
   status: 'pending' | 'paid';
   timestamp: string;
   operatorName?: string;
@@ -130,4 +131,37 @@ export interface Closure {
   timestamp: string;
   operatorName?: string;
   createdBy: string;
+  salesDetails?: {
+    code: string;
+    name: string;
+    quantity: number;
+    price: number;
+    total: number;
+  }[];
+  expenseDetails?: {
+    invoiceNumber?: string;
+    description: string;
+    amount: number;
+    timestamp: string;
+  }[];
+  inventoryDetails?: {
+    code: string;
+    name: string;
+    previousBalance: number;
+    entries: number;
+    exits: number;
+    currentBalance: number;
+  }[];
+  accountsPayable?: {
+    description: string;
+    amount: number;
+    dueDate?: string;
+    status: string;
+  }[];
+  accountsReceivable?: {
+    description: string;
+    amount: number;
+    dueDate?: string;
+    status: string;
+  }[];
 }

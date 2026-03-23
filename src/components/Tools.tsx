@@ -3,13 +3,14 @@ import Barcode from 'react-barcode';
 import { QRCodeSVG } from 'qrcode.react';
 import { useReactToPrint } from 'react-to-print';
 import { format } from 'date-fns';
-import { Printer, FileText, CreditCard, QrCode, Settings, Trash2, Plus, User, Building } from 'lucide-react';
+import { Printer, FileText, CreditCard, QrCode, Settings, Trash2, Plus, User, Building, Database, Download } from 'lucide-react';
 import { motion } from 'motion/react';
-import { collection, onSnapshot, doc, setDoc, getDoc } from 'firebase/firestore';
+import { collection, onSnapshot, doc, setDoc, getDoc, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PaymentSettings } from '../types';
 import { handleFirestoreError, OperationType } from '../utils';
 import ValidationModal from './ValidationModal';
+import * as XLSX from 'xlsx';
 
 export default function Tools({ user }: { user: any }) {
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings>({
@@ -45,7 +46,96 @@ export default function Tools({ user }: { user: any }) {
   });
 
   const [newItem, setNewItem] = useState({ code: '', name: '', quantity: 1, unitPrice: 0 });
+  const [isBackingUp, setIsBackingUp] = useState(false);
 
+  const downloadBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      // Fetch all data
+      const [salesSnap, finSnap, invTransSnap, inventorySnap] = await Promise.all([
+        getDocs(collection(db, 'sales')),
+        getDocs(collection(db, 'financials')),
+        getDocs(collection(db, 'inventoryTransactions')),
+        getDocs(collection(db, 'inventory'))
+      ]);
+
+      const wb = XLSX.utils.book_new();
+
+      // Sales Sheet
+      const salesData = salesSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ID: doc.id,
+          Fecha: format(new Date(data.timestamp), 'dd/MM/yyyy HH:mm'),
+          Monto: data.amount,
+          Plataforma: data.platform,
+          Metodo_Pago: data.paymentMethod,
+          Operador: data.operatorName || 'N/A',
+          Items: (data.items || []).map((i: any) => `${i.name} (x${i.quantity})`).join(', ')
+        };
+      });
+      const wsSales = XLSX.utils.json_to_sheet(salesData);
+      XLSX.utils.book_append_sheet(wb, wsSales, "Ventas");
+
+      // Financials Sheet (Expenses, Payables, Receivables)
+      const finData = finSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ID: doc.id,
+          Tipo: data.type,
+          Descripcion: data.description,
+          Factura: data.invoiceNumber || 'N/A',
+          Monto: data.amount,
+          Estado: data.status,
+          Vencimiento: data.dueDate ? format(new Date(data.dueDate), 'dd/MM/yyyy') : 'N/A',
+          Fecha_Registro: format(new Date(data.timestamp), 'dd/MM/yyyy HH:mm'),
+          Operador: data.operatorName || 'N/A'
+        };
+      });
+      const wsFin = XLSX.utils.json_to_sheet(finData);
+      XLSX.utils.book_append_sheet(wb, wsFin, "Finanzas");
+
+      // Inventory Transactions Sheet
+      const invTransData = invTransSnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ID: doc.id,
+          Item_ID: data.itemId,
+          Tipo: data.type === 'entry' ? 'Entrada' : 'Salida',
+          Cantidad: data.quantity,
+          Precio_Unit: data.unitPrice || 0,
+          Valor_Total: data.totalValue || 0,
+          Factura: data.invoiceNumber || 'N/A',
+          Fecha: format(new Date(data.timestamp), 'dd/MM/yyyy HH:mm'),
+          Operador: data.operatorName || 'N/A'
+        };
+      });
+      const wsInvTrans = XLSX.utils.json_to_sheet(invTransData);
+      XLSX.utils.book_append_sheet(wb, wsInvTrans, "Movimientos_Almacen");
+
+      // Inventory Catalog Sheet
+      const inventoryData = inventorySnap.docs.map(doc => {
+        const data = doc.data();
+        return {
+          ID: doc.id,
+          Codigo: data.code || 'N/A',
+          Nombre: data.name,
+          Stock_Actual: data.quantity,
+          Unidad: data.unit,
+          Stock_Minimo: data.minStock
+        };
+      });
+      const wsInv = XLSX.utils.json_to_sheet(inventoryData);
+      XLSX.utils.book_append_sheet(wb, wsInv, "Catalogo_Almacen");
+
+      // Generate and Download
+      XLSX.writeFile(wb, `Salva_Datos_${format(new Date(), 'yyyyMMdd_HHmm')}.xlsx`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.GET, 'backup_generation');
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
   const addInvoiceItem = () => {
     if (!newItem.name || newItem.unitPrice <= 0) return;
     const itemTotal = newItem.quantity * newItem.unitPrice;
@@ -130,6 +220,33 @@ export default function Tools({ user }: { user: any }) {
       `}} />
       
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+        {/* Backup and General Tools */}
+        <div className="xl:col-span-3">
+          <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-stone-100 rounded-xl text-stone-900">
+                <Database size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold">Respaldo de Datos (Salva)</h3>
+                <p className="text-xs text-stone-500">Descarga toda la información detallada del sistema en formato Excel.</p>
+              </div>
+            </div>
+            <button 
+              onClick={downloadBackup}
+              disabled={isBackingUp}
+              className="w-full md:w-auto px-8 py-3 bg-stone-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-stone-800 transition-all shadow-lg disabled:opacity-50"
+            >
+              {isBackingUp ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+              ) : (
+                <Download size={18} />
+              )}
+              {isBackingUp ? 'Generando...' : 'Descargar Salva Excel'}
+            </button>
+          </div>
+        </div>
+
         {/* Invoice Configuration */}
         <div className="xl:col-span-1 space-y-6 no-print">
           <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-6">

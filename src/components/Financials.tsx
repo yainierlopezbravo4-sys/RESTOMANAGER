@@ -18,6 +18,7 @@ export default function Financials({ user }: { user: any }) {
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
 
   useEffect(() => {
     const q = query(collection(db, 'financials'), orderBy('timestamp', 'desc'));
@@ -38,6 +39,7 @@ export default function Financials({ user }: { user: any }) {
         amount: Number(amount),
         description,
         dueDate: dueDate || null,
+        invoiceNumber: invoiceNumber || null,
         status: type === 'payable' || type === 'receivable' ? 'pending' : 'paid',
         timestamp: new Date().toISOString(),
         operatorName: user.displayName,
@@ -64,7 +66,7 @@ export default function Financials({ user }: { user: any }) {
   };
 
   const resetForm = () => {
-    setAmount(''); setDescription(''); setDueDate(''); setType('expense');
+    setAmount(''); setDescription(''); setDueDate(''); setType('expense'); setInvoiceNumber('');
   };
 
   return (
@@ -100,6 +102,12 @@ export default function Financials({ user }: { user: any }) {
                     <p className="text-sm font-medium">{record.description}</p>
                     <div className="flex items-center gap-2">
                       <p className="text-xs text-stone-400">{format(new Date(record.timestamp), 'd MMM', { locale: es })}</p>
+                      {record.invoiceNumber && (
+                        <>
+                          <span className="text-[10px] text-stone-300">•</span>
+                          <p className="text-[10px] text-stone-500 font-medium uppercase">Fact: {record.invoiceNumber}</p>
+                        </>
+                      )}
                       <span className="text-[10px] text-stone-300">•</span>
                       <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {record.operatorName || 'Sistema'}</p>
                     </div>
@@ -199,6 +207,12 @@ export default function Financials({ user }: { user: any }) {
                 <label className="block text-sm font-medium mb-1">Descripción</label>
                 <input type="text" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
               </div>
+              {type === 'expense' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Nº Factura (Opcional)</label>
+                  <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" />
+                </div>
+              )}
               {(type === 'payable' || type === 'receivable') && (
                 <div>
                   <label className="block text-sm font-medium mb-1">Fecha de Vencimiento</label>
