@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Shield, X, ArrowRight, AlertCircle } from 'lucide-react';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { db } from '../firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { db, auth } from '../firebase';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 
@@ -26,27 +27,24 @@ export default function ValidationModal({ isOpen, onClose, onSuccess, title, des
     setLoading(true);
 
     try {
-      const q = query(
-        collection(db, 'users'),
-        where('email', '==', email),
-        where('password', '==', password),
-        where('role', '==', 'admin')
-      );
-      
-      const querySnapshot = await getDocs(q);
-      
-      if (!querySnapshot.empty) {
-        const userData = querySnapshot.docs[0].data();
-        onSuccess(userData);
+      // Validación segura: intenta autenticarse con firebase.auth
+      const credential = await signInWithEmailAndPassword(auth, email, password);
+      // Confirma rol admin en la colección users
+      const userDoc = await getDoc(doc(db, 'users', credential.user.uid));
+      if (!userDoc.exists() || userDoc.data().role !== 'admin') {
+        toast.error(t('auth.invalid_admin_credentials'));
+        setLoading(false);
+        return;
+      }
+      onSuccess(userDoc.data());
+      // Espera corto antes de desmontar el modal (prevenir reconciliación abrupta en React)
+      setTimeout(() => {
         onClose();
         setEmail('');
         setPassword('');
-      } else {
-        toast.error(t('auth.invalid_admin_credentials'));
-      }
+      }, 200);
     } catch (error) {
-      console.error('Validation error:', error);
-      toast.error(t('auth.validation_error'));
+      toast.error(t('auth.invalid_admin_credentials'));
     } finally {
       setLoading(false);
     }
@@ -77,7 +75,6 @@ export default function ValidationModal({ isOpen, onClose, onSuccess, title, des
               {description}
             </p>
           </div>
-
           <div className="space-y-4">
             <div className="space-y-2">
               <label className="text-xs font-bold text-stone-500 uppercase tracking-wider">{t('auth.admin_email')}</label>
@@ -102,7 +99,6 @@ export default function ValidationModal({ isOpen, onClose, onSuccess, title, des
               />
             </div>
           </div>
-
           <div className="flex gap-3 pt-2">
             <button
               type="button"
