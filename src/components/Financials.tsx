@@ -3,6 +3,7 @@ import { collection, addDoc, query, onSnapshot, updateDoc, doc, orderBy } from '
 import { db } from '../firebase';
 import { FinancialRecord, FinancialType } from '../types';
 import { Plus, DollarSign, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, Filter } from 'lucide-react';
+import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -33,6 +34,7 @@ export default function Financials({ user }: { user: any }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    const toastId = toast.loading("Registrando movimiento...");
     try {
       await addDoc(collection(db, 'financials'), {
         type,
@@ -45,10 +47,12 @@ export default function Financials({ user }: { user: any }) {
         operatorName: user.displayName,
         createdBy: user.uid,
       });
+      toast.success("Movimiento registrado con éxito", { id: toastId });
       setIsModalOpen(false);
       resetForm();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'financials');
+      toast.error("Error al registrar el movimiento", { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -56,12 +60,15 @@ export default function Financials({ user }: { user: any }) {
 
   const toggleStatus = async (record: FinancialRecord) => {
     if (!record.id) return;
+    const toastId = toast.loading("Actualizando estado...");
     try {
       await updateDoc(doc(db, 'financials', record.id), {
         status: record.status === 'pending' ? 'paid' : 'pending'
       });
+      toast.success("Estado actualizado", { id: toastId });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'financials');
+      toast.error("Error al actualizar estado", { id: toastId });
     }
   };
 

@@ -3,6 +3,7 @@ import { collection, addDoc, query, onSnapshot, updateDoc, doc, increment } from
 import { db } from '../firebase';
 import { InventoryItem, InventoryTransaction } from '../types';
 import { Plus, Package, ArrowUp, ArrowDown, Search, Truck, History } from 'lucide-react';
+import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -29,6 +30,7 @@ export default function Inventory({ user }: { user: any }) {
   const [invoice, setInvoice] = useState('');
   const [isValidationOpen, setIsValidationOpen] = useState(false);
   const [pendingData, setPendingData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const unsubscribeItems = onSnapshot(collection(db, 'inventory'), (snapshot) => {
@@ -92,6 +94,8 @@ export default function Inventory({ user }: { user: any }) {
 
   const handleValidationSuccess = async (validatedUser: any) => {
     if (!pendingData) return;
+    setLoading(true);
+    const toastId = toast.loading("Procesando inventario...");
 
     try {
       if (pendingData.type === 'new_item') {
@@ -162,11 +166,15 @@ export default function Inventory({ user }: { user: any }) {
         });
       }
 
+      toast.success("Inventario actualizado con éxito", { id: toastId });
       setIsModalOpen(false);
       resetForm();
       setPendingData(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'inventory');
+      toast.error("Error al actualizar el inventario", { id: toastId });
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, orderBy, onSnapshot, limit, serverTimestamp, where } from 'firebase/firestore';
 import { db } from '../firebase';
-import { Sale, Platform, SaleItem, PaymentMethod, PaymentSettings } from '../types';
+import { InventoryItem, Sale, Platform, SaleItem, PaymentMethod, PaymentSettings } from '../types';
 import { Plus, ShoppingCart, Smartphone, Store, Search, Filter, Printer, Eye, Trash2, Calendar, X, CreditCard, Banknote, QrCode, FileText } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../utils';
+import { toast } from 'sonner';
 import Barcode from 'react-barcode';
 import { QRCodeSVG } from 'qrcode.react';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
 import ValidationModal from './ValidationModal';
 
 const PixPaymentModal = ({ sale, onContinue }: { sale: Sale; onContinue: () => void }) => {
@@ -174,6 +175,8 @@ export default function Sales({ user }: { user: any }) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [selectedPixKey, setSelectedPixKey] = useState('');
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [selectedInventoryId, setSelectedInventoryId] = useState('');
   const [sender, setSender] = useState('RestoManager Pro');
   const [recipient, setRecipient] = useState('');
   const [loading, setLoading] = useState(false);
@@ -214,7 +217,15 @@ export default function Sales({ user }: { user: any }) {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
-    }, (error) => handleFirestoreError(error, OperationType.GET, 'sales'));
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'sales');
+      toast.error("Error al cargar las ventas");
+    });
+
+    // Fetch inventory items for selection
+    const unsubscribeInventory = onSnapshot(collection(db, 'inventory'), (snapshot) => {
+      setInventoryItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as InventoryItem)));
+    });
 
     // Fetch payment settings
     const fetchSettings = async () => {
@@ -231,8 +242,11 @@ export default function Sales({ user }: { user: any }) {
     };
     fetchSettings();
 
-    return () => unsubscribe();
-  }, []);
+    return () => {
+      unsubscribe();
+      unsubscribeInventory();
+    };
+  }, [startDate, endDate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -259,46 +273,95 @@ export default function Sales({ user }: { user: any }) {
 
   const handleValidationSuccess = async (validatedUser: any) => {
     if (!pendingSaleData) return;
-
     setLoading(true);
+    const toastId = toast.loading("Registrando venta...");
+
     try {
       const saleData = {
         ...pendingSaleData,
+        timestamp: new Date().toISOString(),
         operatorName: validatedUser.displayName,
-        createdBy: validatedUser.uid
+        createdBy: validatedUser.uid,
+        pixKeyUsed: paymentMethod === 'pix' ? selectedPixKey : null
       };
+
       const docRef = await addDoc(collection(db, 'sales'), saleData);
-      const saleWithId = { id: docRef.id, ...saleData };
+      const newSale = { id: docRef.id, ...saleData } as Sale;
+
+      // Update inventory for each item
+      for (const item of newItems) {
+        if (item.inventoryId) {
+          await updateDoc(doc(db, 'inventory', item.inventoryId), {
+            quantity: increment(-item.quantity)
+          });
+
+          // Record inventory transaction
+          await addDoc(collection(db, 'inventoryTransactions'), {
+            itemId: item.inventoryId,
+            type: 'exit',
+            quantity: item.quantity,
+            timestamp: new Date().toISOString(),
+            operatorName: validatedUser.displayName,
+            createdBy: validatedUser.uid,
+            saleId: docRef.id
+          });
+        }
+      }
+
+      toast.success("Venta registrada con éxito", { id: toastId });
+      setIsModalOpen(false);
+      resetForm();
       
       if (paymentMethod === 'pix') {
-        setShowPixModal(saleWithId);
+        setShowPixModal(newSale);
       } else {
-        setShowReceipt(saleWithId);
+        setShowReceipt(newSale);
       }
-      
-      setIsModalOpen(false);
-      setAmount('');
-      setNewItems([]);
-      setPendingSaleData(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'sales');
+      toast.error("Error al registrar la venta", { id: toastId });
     } finally {
       setLoading(false);
+      setPendingSaleData(null);
     }
+  };
+
+  const resetForm = () => {
+    setAmount('');
+    setNewItems([]);
+    setPendingSaleData(null);
+    setItemCode('');
+    setItemName('');
+    setItemQty('1');
+    setItemPrice('');
+    setSelectedInventoryId('');
+    setRecipient('');
   };
 
   const addItem = () => {
     if (!itemName || !itemPrice) return;
     setNewItems([...newItems, {
+      inventoryId: selectedInventoryId || undefined,
       code: itemCode,
       name: itemName,
       quantity: Number(itemQty),
       price: Number(itemPrice)
     }]);
+    setSelectedInventoryId('');
     setItemCode('');
     setItemName('');
     setItemQty('1');
     setItemPrice('');
+  };
+
+  const handleInventorySelect = (id: string) => {
+    setSelectedInventoryId(id);
+    const item = inventoryItems.find(i => i.id === id);
+    if (item) {
+      setItemCode(item.code || '');
+      setItemName(item.name);
+      if (item.price) setItemPrice(item.price.toString());
+    }
   };
 
   const removeItem = (index: number) => {
@@ -474,42 +537,55 @@ export default function Sales({ user }: { user: any }) {
                   <span className="text-xs text-stone-400">Agrega productos para detalle</span>
                 </div>
                 
-                <div className="grid grid-cols-12 gap-2">
-                  <input 
-                    type="text" 
-                    placeholder="Cód"
-                    value={itemCode}
-                    onChange={e => setItemCode(e.target.value)}
-                    className="col-span-2 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
-                  />
-                  <input 
-                    type="text" 
-                    placeholder="Producto"
-                    value={itemName}
-                    onChange={e => setItemName(e.target.value)}
-                    className="col-span-3 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
-                  />
-                  <input 
-                    type="number" 
-                    placeholder="Cant"
-                    value={itemQty}
-                    onChange={e => setItemQty(e.target.value)}
-                    className="col-span-2 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
-                  />
-                  <input 
-                    type="number" 
-                    placeholder="Precio"
-                    value={itemPrice}
-                    onChange={e => setItemPrice(e.target.value)}
-                    className="col-span-3 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
-                  />
-                  <button 
-                    type="button"
-                    onClick={addItem}
-                    className="col-span-2 flex items-center justify-center bg-stone-100 text-stone-600 rounded-lg hover:bg-stone-200"
+                <div className="space-y-2">
+                  <select 
+                    value={selectedInventoryId} 
+                    onChange={e => handleInventorySelect(e.target.value)}
+                    className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg text-xs"
                   >
-                    <Plus size={18} />
-                  </button>
+                    <option value="">Seleccionar de Inventario (Opcional)</option>
+                    {inventoryItems.map(item => (
+                      <option key={item.id} value={item.id}>{item.name} ({item.quantity} {item.unit})</option>
+                    ))}
+                  </select>
+                  
+                  <div className="grid grid-cols-12 gap-2">
+                    <input 
+                      type="text" 
+                      placeholder="Cód"
+                      value={itemCode}
+                      onChange={e => setItemCode(e.target.value)}
+                      className="col-span-2 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
+                    />
+                    <input 
+                      type="text" 
+                      placeholder="Producto"
+                      value={itemName}
+                      onChange={e => setItemName(e.target.value)}
+                      className="col-span-3 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="Cant"
+                      value={itemQty}
+                      onChange={e => setItemQty(e.target.value)}
+                      className="col-span-2 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
+                    />
+                    <input 
+                      type="number" 
+                      placeholder="Precio"
+                      value={itemPrice}
+                      onChange={e => setItemPrice(e.target.value)}
+                      className="col-span-3 p-2 bg-stone-50 border border-stone-200 rounded-lg text-sm"
+                    />
+                    <button 
+                      type="button"
+                      onClick={addItem}
+                      className="col-span-2 flex items-center justify-center bg-stone-900 text-white rounded-lg hover:bg-stone-800"
+                    >
+                      <Plus size={18} />
+                    </button>
+                  </div>
                 </div>
 
                 {newItems.length > 0 && (

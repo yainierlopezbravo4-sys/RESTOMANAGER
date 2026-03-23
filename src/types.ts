@@ -18,6 +18,7 @@ export interface User {
 }
 
 export interface SaleItem {
+  inventoryId?: string;
   code?: string;
   name: string;
   quantity: number;
@@ -56,6 +57,7 @@ export interface InventoryItem {
   quantity: number;
   unit: string;
   minStock: number;
+  price?: number;
   supplierId?: string;
 }
 

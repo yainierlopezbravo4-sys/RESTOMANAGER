@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { collection, query, orderBy, limit, onSnapshot, where, doc, setDoc, addDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../utils';
+import { toast } from 'sonner';
 import { Sale, FinancialRecord, InventoryItem, GeneralSettings } from '../types';
 import { 
   TrendingUp, 
@@ -12,7 +13,8 @@ import {
   ArrowDownLeft,
   DollarSign,
   Power,
-  Clock
+  Clock,
+  ShoppingCart
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -292,8 +294,4 @@ function StatCard({ title, value, icon: Icon, color, trend }: any) {
       </div>
     </div>
   );
-}
-
-function ShoppingCart({ size, className }: any) {
-  return <TrendingUp size={size} className={className} />;
 }
