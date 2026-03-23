@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BusinessSettings } from '../types';
-import { Building2, Save, MapPin, Phone, Mail, Globe, CreditCard, Shield, User, LogOut, Moon, Sun, Languages } from 'lucide-react';
+import { Building2, Save, MapPin, Phone, Mail, Globe, CreditCard, Shield, User, LogOut, Moon, Sun, Languages, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
 import LanguageSwitcher from './LanguageSwitcher';
@@ -23,8 +23,11 @@ export default function Settings({ user, onLogout }: { user: any, onLogout: () =
     return document.documentElement.classList.contains('dark');
   });
 
+  const isAdmin = user?.role === 'admin';
+
   useEffect(() => {
     const fetchSettings = async () => {
+      if (!user) return;
       try {
         const docRef = doc(db, 'settings', 'business');
         const docSnap = await getDoc(docRef);
@@ -33,16 +36,21 @@ export default function Settings({ user, onLogout }: { user: any, onLogout: () =
         }
       } catch (error) {
         console.error('Error fetching settings:', error);
-        toast.error(t('settings.error_load'));
+        // Solo mostramos error al admin, el staff no tiene permiso por regla
+        if (isAdmin) toast.error(t('settings.error_load'));
       } finally {
         setLoading(false);
       }
     };
     fetchSettings();
-  }, [t]);
+  }, [user, isAdmin, t]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isAdmin) {
+      toast.error(t('app.restricted_access'));
+      return;
+    }
     try {
       await setDoc(doc(db, 'settings', 'business'), settings);
       toast.success(t('settings.success_save'));
@@ -71,8 +79,8 @@ export default function Settings({ user, onLogout }: { user: any, onLogout: () =
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8">
-      {/* Profile Section */}
+    <div className="max-w-4xl mx-auto space-y-8 pb-12">
+      {/* Sección de Perfil */}
       <section className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
@@ -104,15 +112,15 @@ export default function Settings({ user, onLogout }: { user: any, onLogout: () =
           <div>
             <h4 className="text-lg font-bold">{user?.displayName}</h4>
             <p className="text-stone-500">{user?.email}</p>
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-1 bg-stone-200 rounded-full text-[10px] font-bold uppercase tracking-wider text-stone-600">
+            <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${isAdmin ? 'bg-amber-100 text-amber-700' : 'bg-stone-200 text-stone-600'}`}>
               <Shield size={12} />
-              {user?.role || 'Staff'}
+              {user?.role}
             </div>
           </div>
         </div>
       </section>
 
-      {/* App Preferences */}
+      {/* Preferencias de App (Abierto para todos) */}
       <section className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
         <div className="flex items-center gap-4 mb-8">
           <div className="p-3 bg-stone-100 rounded-2xl">
@@ -160,124 +168,84 @@ export default function Settings({ user, onLogout }: { user: any, onLogout: () =
         </div>
       </section>
 
-      {/* Business Settings */}
-      <section className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm">
-        <div className="flex items-center gap-4 mb-8">
-          <div className="p-3 bg-stone-100 rounded-2xl">
-            <Building2 size={24} className="text-stone-600" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold">{t('settings.business')}</h3>
-            <p className="text-sm text-stone-500">{t('settings.business_desc')}</p>
-          </div>
-        </div>
-
-        <form onSubmit={handleSave} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <Building2 size={14} />
-                {t('settings.business_name')}
-              </label>
-              <input
-                type="text"
-                value={settings.name}
-                onChange={(e) => setSettings({ ...settings, name: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: RestoManager Pro"
-              />
+      {/* Configuración de Negocio (SOLO ADMIN) */}
+      {isAdmin ? (
+        <section className="bg-white p-8 rounded-3xl border border-stone-200 shadow-sm animate-in fade-in slide-in-from-bottom-4">
+          <div className="flex items-center gap-4 mb-8">
+            <div className="p-3 bg-stone-100 rounded-2xl">
+              <Building2 size={24} className="text-stone-600" />
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <CreditCard size={14} />
-                {t('settings.tax_id')}
-              </label>
-              <input
-                type="text"
-                value={settings.taxId}
-                onChange={(e) => setSettings({ ...settings, taxId: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: 00.000.000/0001-00"
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <MapPin size={14} />
-                {t('settings.address')}
-              </label>
-              <input
-                type="text"
-                value={settings.address}
-                onChange={(e) => setSettings({ ...settings, address: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: Av. Principal, 123 - Centro"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <Phone size={14} />
-                {t('settings.phone')}
-              </label>
-              <input
-                type="text"
-                value={settings.phone}
-                onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: (00) 00000-0000"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <Mail size={14} />
-                {t('settings.email')}
-              </label>
-              <input
-                type="email"
-                value={settings.email}
-                onChange={(e) => setSettings({ ...settings, email: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: contato@restomanager.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <Globe size={14} />
-                {t('settings.website')}
-              </label>
-              <input
-                type="text"
-                value={settings.website}
-                onChange={(e) => setSettings({ ...settings, website: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: www.restomanager.com"
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
-                <CreditCard size={14} />
-                {t('settings.pix_key')}
-              </label>
-              <input
-                type="text"
-                value={settings.pixKey}
-                onChange={(e) => setSettings({ ...settings, pixKey: e.target.value })}
-                className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
-                placeholder="Ex: CNPJ, Email, Celular ou Chave Aleatória"
-              />
+            <div>
+              <h3 className="text-xl font-bold">{t('settings.business')}</h3>
+              <p className="text-sm text-stone-500">{t('settings.business_desc')}</p>
             </div>
           </div>
 
-          <div className="flex justify-end pt-4">
+          <form onSubmit={handleSave} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                  <Building2 size={14} /> {t('settings.business_name')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.name}
+                  onChange={(e) => setSettings({ ...settings, name: e.target.value })}
+                  className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                  <CreditCard size={14} /> {t('settings.tax_id')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.taxId}
+                  onChange={(e) => setSettings({ ...settings, taxId: e.target.value })}
+                  className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                  <MapPin size={14} /> {t('settings.address')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.address}
+                  onChange={(e) => setSettings({ ...settings, address: e.target.value })}
+                  className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-stone-500 uppercase tracking-wider flex items-center gap-2">
+                  <Phone size={14} /> {t('settings.phone')}
+                </label>
+                <input
+                  type="text"
+                  value={settings.phone}
+                  onChange={(e) => setSettings({ ...settings, phone: e.target.value })}
+                  className="w-full bg-stone-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-stone-900 transition-all font-medium"
+                />
+              </div>
+            </div>
+
             <button
               type="submit"
-              className="flex items-center gap-2 bg-stone-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-stone-800 transition-all shadow-lg"
+              className="w-full bg-stone-900 text-white p-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-stone-800 transition-colors shadow-lg active:scale-[0.98]"
             >
               <Save size={20} />
-              {t('settings.save_changes')}
+              {t('settings.save')}
             </button>
-          </div>
-        </form>
-      </section>
+          </form>
+        </section>
+      ) : (
+        <div className="p-8 bg-stone-100 border border-dashed border-stone-300 rounded-3xl text-center">
+          <Lock className="mx-auto mb-3 text-stone-400" size={24} />
+          <p className="text-stone-500 font-medium text-sm">
+            {t('app.restricted_access_desc')}
+          </p>
+        </div>
+      )}
     </div>
   );
 }
