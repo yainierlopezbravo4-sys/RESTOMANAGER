@@ -6,6 +6,7 @@ export type ClosureType = 'daily' | 'decadal' | 'monthly' | 'annual';
 export type PaymentMethod = 'pix' | 'cash' | 'ted';
 
 export interface User {
+  id?: string;
   uid: string;
   email: string;
   role: UserRole;

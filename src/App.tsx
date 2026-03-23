@@ -84,12 +84,7 @@ function App() {
   }
 
   if (!user) {
-    return (
-      <>
-        <Login />
-        <Toaster position="top-right" />
-      </>
-    );
+    return <Login />;
   }
 
   const renderContent = () => {
@@ -149,7 +144,7 @@ function App() {
         </div>
       </main>
 
-      <Toaster position="top-right" />
+      <Toaster position="top-right" richColors closeButton />
     </div>
   );
 }
