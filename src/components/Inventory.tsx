@@ -2,15 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, onSnapshot, updateDoc, doc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { InventoryItem, InventoryTransaction } from '../types';
-import { Plus, Package, ArrowUp, ArrowDown, Search, Truck, History } from 'lucide-react';
+import { Plus, Package, ArrowUp, ArrowDown, Search, Truck, History, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es, enUS, ptBR } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../utils';
+import { useTranslation } from 'react-i18next';
 import ValidationModal from './ValidationModal';
 
 export default function Inventory({ user }: { user: any }) {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'es' ? es : i18n.language === 'pt' ? ptBR : enUS;
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [transactions, setTransactions] = useState<InventoryTransaction[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -95,7 +98,7 @@ export default function Inventory({ user }: { user: any }) {
   const handleValidationSuccess = async (validatedUser: any) => {
     if (!pendingData) return;
     setLoading(true);
-    const toastId = toast.loading("Procesando inventario...");
+    const toastId = toast.loading(t('inventory.processing'));
 
     try {
       if (pendingData.type === 'new_item') {
@@ -125,7 +128,7 @@ export default function Inventory({ user }: { user: any }) {
           await addDoc(collection(db, 'financials'), {
             type: 'expense',
             amount: totalValue,
-            description: `Stock inicial: ${name}`,
+            description: `${t('inventory.initial_stock')}: ${name}`,
             status: 'paid',
             timestamp: new Date().toISOString(),
             operatorName: validatedUser.displayName,
@@ -153,7 +156,7 @@ export default function Inventory({ user }: { user: any }) {
           await addDoc(collection(db, 'financials'), {
             type: 'expense',
             amount: totalValue,
-            description: `Compra inventario: ${itemName || 'Producto'}`,
+            description: `${t('inventory.purchase')}: ${itemName || t('inventory.product')}`,
             status: 'paid',
             timestamp: new Date().toISOString(),
             operatorName: validatedUser.displayName,
@@ -166,13 +169,13 @@ export default function Inventory({ user }: { user: any }) {
         });
       }
 
-      toast.success("Inventario actualizado con éxito", { id: toastId });
+      toast.success(t('inventory.success'), { id: toastId });
       setIsModalOpen(false);
       resetForm();
       setPendingData(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'inventory');
-      toast.error("Error al actualizar el inventario", { id: toastId });
+      toast.error(t('inventory.error'), { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -193,14 +196,14 @@ export default function Inventory({ user }: { user: any }) {
             className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-xl hover:bg-stone-800 transition-all shadow-lg"
           >
             <Plus size={20} />
-            Nuevo Producto
+            {t('inventory.new_product')}
           </button>
           <button 
             onClick={() => { setModalType('transaction'); setIsModalOpen(true); }}
             className="flex items-center gap-2 bg-white border border-stone-200 text-stone-900 px-4 py-2 rounded-xl hover:bg-stone-50 transition-all"
           >
             <History size={20} />
-            Movimiento
+            {t('inventory.movement')}
           </button>
         </div>
       </div>
@@ -210,16 +213,16 @@ export default function Inventory({ user }: { user: any }) {
         <div className="lg:col-span-2 space-y-4">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <Package size={20} />
-            Existencias Actuales
+            {t('inventory.current_stock')}
           </h3>
           <div className="bg-white rounded-2xl border border-stone-200 shadow-sm overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-stone-50 border-b border-stone-200">
-                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Código</th>
-                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Producto</th>
-                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Stock</th>
-                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Estado</th>
+                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('inventory.table.code')}</th>
+                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('inventory.table.product')}</th>
+                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('inventory.table.stock')}</th>
+                  <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('inventory.table.status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-100">
@@ -232,7 +235,7 @@ export default function Inventory({ user }: { user: any }) {
                     </td>
                     <td className="px-6 py-4">
                       {item.quantity <= item.minStock ? (
-                        <span className="text-xs font-bold px-2 py-1 bg-red-100 text-red-600 rounded-full">Bajo Stock</span>
+                        <span className="text-xs font-bold px-2 py-1 bg-red-100 text-red-600 rounded-full">{t('inventory.low_stock')}</span>
                       ) : (
                         <span className="text-xs font-bold px-2 py-1 bg-emerald-100 text-emerald-600 rounded-full">OK</span>
                       )}
@@ -248,7 +251,7 @@ export default function Inventory({ user }: { user: any }) {
         <div className="space-y-4">
           <h3 className="text-lg font-bold flex items-center gap-2">
             <History size={20} />
-            Últimos Movimientos
+            {t('inventory.recent_movements')}
           </h3>
           <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm space-y-6">
             {transactions.slice(0, 8).map((tx) => {
@@ -259,10 +262,10 @@ export default function Inventory({ user }: { user: any }) {
                     {tx.type === 'entry' ? <ArrowDown size={16} className="text-emerald-600" /> : <ArrowUp size={16} className="text-red-600" />}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{item?.name || 'Desconocido'}</p>
-                    <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {tx.operatorName || 'Sistema'}</p>
+                    <p className="text-sm font-semibold truncate">{item?.name || t('app.unknown')}</p>
+                    <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {tx.operatorName || t('app.system')}</p>
                     <p className="text-xs text-stone-400">
-                      {format(new Date(tx.timestamp), 'd MMM, HH:mm', { locale: es })}
+                      {format(new Date(tx.timestamp), 'd MMM, HH:mm', { locale: dateLocale })}
                       {tx.totalValue ? ` • $${tx.totalValue.toLocaleString()}` : ''}
                     </p>
                   </div>
@@ -285,7 +288,7 @@ export default function Inventory({ user }: { user: any }) {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">{modalType === 'item' ? 'Nuevo Producto' : 'Registrar Movimiento'}</h3>
+              <h3 className="text-xl font-bold">{modalType === 'item' ? t('inventory.new_product') : t('inventory.movement')}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <Plus size={24} className="rotate-45" />
               </button>
@@ -295,31 +298,31 @@ export default function Inventory({ user }: { user: any }) {
               <form onSubmit={handleAddItem} className="space-y-4">
                 <div className="grid grid-cols-3 gap-4">
                   <div className="col-span-1">
-                    <label className="block text-sm font-medium mb-1">Código</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.table.code')}</label>
                     <input type="text" value={code} onChange={e => setCode(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" placeholder="INT-001" />
                   </div>
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-1">Nombre</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.table.product')}</label>
                     <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Stock Inicial</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.initial_stock')}</label>
                     <input type="number" value={quantity} onChange={e => setQuantity(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Unidad</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.unit')}</label>
                     <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg">
-                      <option value="un">Unidades</option>
-                      <option value="kg">Kilos</option>
-                      <option value="lt">Litros</option>
+                      <option value="un">{t('inventory.units')}</option>
+                      <option value="kg">{t('inventory.kilos')}</option>
+                      <option value="lt">{t('inventory.liters')}</option>
                     </select>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Precio Unitario</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.unit_price')}</label>
                     <input 
                       type="number" 
                       value={unitPrice} 
@@ -331,7 +334,7 @@ export default function Inventory({ user }: { user: any }) {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Valor Total</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.total_value')}</label>
                     <input 
                       type="number" 
                       value={totalValue} 
@@ -340,27 +343,27 @@ export default function Inventory({ user }: { user: any }) {
                     />
                   </div>
                 </div>
-                <button type="submit" className="w-full bg-stone-900 text-white py-3 rounded-xl font-bold">Guardar Producto</button>
+                <button type="submit" className="w-full bg-stone-900 text-white py-3 rounded-xl font-bold">{t('inventory.save_product')}</button>
               </form>
             ) : (
               <form onSubmit={handleAddTransaction} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-1">Producto</label>
+                  <label className="block text-sm font-medium mb-1">{t('inventory.product')}</label>
                   <select value={selectedItemId} onChange={e => setSelectedItemId(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required>
-                    <option value="">Seleccionar...</option>
+                    <option value="">{t('app.select')}...</option>
                     {items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium mb-1">Tipo</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.type')}</label>
                     <select value={txType} onChange={e => setTxType(e.target.value as any)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg">
-                      <option value="entry">Entrada (Factura)</option>
-                      <option value="exit">Salida (Pedido)</option>
+                      <option value="entry">{t('inventory.entry')}</option>
+                      <option value="exit">{t('inventory.exit')}</option>
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Cantidad</label>
+                    <label className="block text-sm font-medium mb-1">{t('inventory.table.stock')}</label>
                     <input type="number" value={txQty} onChange={e => setTxQty(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
                   </div>
                 </div>
@@ -368,7 +371,7 @@ export default function Inventory({ user }: { user: any }) {
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Precio Unitario</label>
+                        <label className="block text-sm font-medium mb-1">{t('inventory.unit_price')}</label>
                         <input 
                           type="number" 
                           value={unitPrice} 
@@ -380,7 +383,7 @@ export default function Inventory({ user }: { user: any }) {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-1">Valor Total</label>
+                        <label className="block text-sm font-medium mb-1">{t('inventory.total_value')}</label>
                         <input 
                           type="number" 
                           value={totalValue} 
@@ -390,12 +393,12 @@ export default function Inventory({ user }: { user: any }) {
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Nº Factura</label>
+                      <label className="block text-sm font-medium mb-1">{t('inventory.invoice')}</label>
                       <input type="text" value={invoice} onChange={e => setInvoice(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" />
                     </div>
                   </>
                 )}
-                <button type="submit" className="w-full bg-stone-900 text-white py-3 rounded-xl font-bold">Registrar Movimiento</button>
+                <button type="submit" className="w-full bg-stone-900 text-white py-3 rounded-xl font-bold">{t('inventory.register_movement')}</button>
               </form>
             )}
           </motion.div>
@@ -406,10 +409,10 @@ export default function Inventory({ user }: { user: any }) {
         isOpen={isValidationOpen}
         onClose={() => setIsValidationOpen(false)}
         onSuccess={handleValidationSuccess}
-        title="Confirmar Movimiento"
+        title={t('inventory.confirm_movement')}
         description={pendingData?.type === 'new_item' 
-          ? `Vas a registrar un nuevo producto: ${pendingData.name} con un stock inicial de ${pendingData.quantity} ${pendingData.unit}.`
-          : `Vas a registrar una ${pendingData?.txType === 'entry' ? 'ENTRADA' : 'SALIDA'} de ${pendingData?.quantity} unidades para el producto: ${pendingData?.itemName}.`}
+          ? t('inventory.confirm_new_item', { name: pendingData.name, quantity: pendingData.quantity, unit: pendingData.unit })
+          : t('inventory.confirm_tx', { type: pendingData?.txType === 'entry' ? t('inventory.entry') : t('inventory.exit'), quantity: pendingData?.quantity, name: pendingData?.itemName })}
       />
     </div>
   );

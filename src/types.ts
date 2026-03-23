@@ -93,6 +93,8 @@ export interface BusinessSettings {
   phone: string;
   email: string;
   taxId: string;
+  website?: string;
+  pixKey?: string;
 }
 
 export interface GeneralSettings {

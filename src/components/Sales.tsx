@@ -1,173 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, query, orderBy, onSnapshot, limit, serverTimestamp, where } from 'firebase/firestore';
+import { collection, addDoc, query, orderBy, onSnapshot, limit, where } from 'firebase/firestore';
 import { db } from '../firebase';
 import { InventoryItem, Sale, Platform, SaleItem, PaymentMethod, PaymentSettings } from '../types';
-import { Plus, ShoppingCart, Smartphone, Store, Search, Filter, Printer, Eye, Trash2, Calendar, X, CreditCard, Banknote, QrCode, FileText } from 'lucide-react';
+import { Plus, ShoppingCart, Smartphone, Store, Search, Filter, Printer, Eye, Trash2, Calendar, X, CreditCard, Banknote, QrCode } from 'lucide-react';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es, enUS, ptBR } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../utils';
 import { toast } from 'sonner';
-import Barcode from 'react-barcode';
-import { QRCodeSVG } from 'qrcode.react';
 import { doc, getDoc, updateDoc, increment } from 'firebase/firestore';
+import { useTranslation } from 'react-i18next';
 import ValidationModal from './ValidationModal';
-
-const PixPaymentModal = ({ sale, onContinue }: { sale: Sale; onContinue: () => void }) => {
-  const pixPayload = `pix://${sale.pixKeyUsed}?amount=${sale.amount}&id=${sale.id}`;
-
-  return (
-    <div className="fixed inset-0 bg-stone-900/80 backdrop-blur-md z-[70] flex items-center justify-center p-4">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden"
-      >
-        <div className="bg-stone-900 p-6 text-white text-center">
-          <QrCode size={40} className="mx-auto mb-2 text-stone-400" />
-          <h3 className="text-xl font-bold">Pago con Pix</h3>
-          <p className="text-stone-400 text-xs mt-1">Escanea el código para completar el pago</p>
-        </div>
-        
-        <div className="p-8 flex flex-col items-center gap-6">
-          <div className="bg-stone-50 p-6 rounded-2xl border-2 border-stone-100 shadow-inner">
-            <QRCodeSVG value={pixPayload} size={200} />
-          </div>
-          
-          <div className="text-center space-y-1">
-            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Monto a Pagar</p>
-            <p className="text-3xl font-black text-stone-900">${sale.amount.toLocaleString()}</p>
-          </div>
-
-          <div className="w-full p-3 bg-stone-50 rounded-xl border border-stone-100">
-            <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Llave Pix</p>
-            <p className="text-xs font-mono break-all text-stone-600">{sale.pixKeyUsed}</p>
-          </div>
-
-          <button 
-            onClick={onContinue}
-            className="w-full bg-stone-900 text-white py-4 rounded-xl font-bold hover:bg-stone-800 transition-all shadow-lg flex items-center justify-center gap-2"
-          >
-            <FileText size={18} />
-            Generar Comprobante
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
-
-const Receipt = ({ sale, onClose }: { sale: Sale; onClose: () => void }) => {
-  return (
-    <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4 overflow-y-auto">
-      <motion.div 
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-[350px] font-mono text-[10px] text-stone-900 relative"
-      >
-        <div className="text-center mb-4 border-b border-dashed border-stone-300 pb-4">
-          <h2 className="text-sm font-bold uppercase tracking-tighter">{sale.sender || 'RestoManager Pro'}</h2>
-          <p className="text-[8px] text-stone-500 mt-1">Factura de Venta / Comprobante</p>
-        </div>
-
-        <div className="space-y-1 mb-4">
-          <div className="flex justify-between">
-            <span>FECHA:</span>
-            <span>{format(new Date(sale.timestamp), 'dd/MM/yyyy')}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>HORA:</span>
-            <span>{format(new Date(sale.timestamp), 'HH:mm:ss')}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>DESTINATARIO:</span>
-            <span className="uppercase truncate max-w-[150px]">{sale.recipient || 'CLIENTE FINAL'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>MÉTODO PAGO:</span>
-            <span className="uppercase font-bold">{sale.paymentMethod}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>ID:</span>
-            <span className="text-[8px]">{sale.id}</span>
-          </div>
-          <div className="flex justify-between border-t border-stone-200 mt-1 pt-1">
-            <span>OPERADOR:</span>
-            <span className="uppercase font-bold">{sale.operatorName || 'SISTEMA'}</span>
-          </div>
-        </div>
-
-        <div className="border-y border-dashed border-stone-300 py-2 mb-4">
-          <div className="flex justify-between font-bold mb-1">
-            <span className="w-1/2">ITEM</span>
-            <span className="w-1/6 text-right">CANT</span>
-            <span className="w-1/3 text-right">TOTAL</span>
-          </div>
-          {sale.items && sale.items.length > 0 ? (
-            sale.items.map((item, i) => (
-              <div key={i} className="mb-1">
-                <div className="flex justify-between">
-                  <span className="w-1/2 truncate">{item.name}</span>
-                  <span className="w-1/6 text-right">{item.quantity}</span>
-                  <span className="w-1/3 text-right">${(item.price * item.quantity).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-[8px] text-stone-500">
-                  <span>Cód: {item.code || 'N/A'}</span>
-                  <span>Unit: ${item.price.toLocaleString()}</span>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="flex justify-between">
-              <span>VENTA GENERAL</span>
-              <span>${sale.amount.toLocaleString()}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="flex justify-between text-sm font-bold mb-6">
-          <span>TOTAL:</span>
-          <span>${sale.amount.toLocaleString()}</span>
-        </div>
-
-        <div className="flex flex-col items-center gap-4">
-          <p className="text-[8px] text-stone-400 text-center">Rastreable hasta el lugar de origen</p>
-          <div className="bg-white p-2 border border-stone-100 rounded">
-            <Barcode 
-              value={sale.id || '00000000'} 
-              width={1} 
-              height={40} 
-              fontSize={8}
-              background="transparent"
-            />
-          </div>
-          <div className="text-[7px] text-stone-400 text-center mt-2">
-            <p>IMPRESO EL: {format(new Date(), 'dd/MM/yyyy HH:mm:ss')}</p>
-            <p>OPERADOR: {sale.operatorName || 'SISTEMA'}</p>
-          </div>
-        </div>
-
-        <div className="mt-8 flex gap-2 no-print">
-          <button 
-            onClick={() => window.print()}
-            className="flex-1 bg-stone-900 text-white py-2 rounded-lg font-bold flex items-center justify-center gap-2 text-xs"
-          >
-            <Printer size={14} />
-            Imprimir
-          </button>
-          <button 
-            onClick={onClose}
-            className="flex-1 bg-stone-100 text-stone-900 py-2 rounded-lg font-bold text-xs"
-          >
-            Cerrar
-          </button>
-        </div>
-      </motion.div>
-    </div>
-  );
-};
+import Receipt from './sales/Receipt';
+import PixPaymentModal from './sales/PixPaymentModal';
 
 export default function Sales({ user }: { user: any }) {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'es' ? es : i18n.language === 'pt' ? ptBR : enUS;
   const [sales, setSales] = useState<Sale[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [amount, setAmount] = useState('');
@@ -219,7 +68,7 @@ export default function Sales({ user }: { user: any }) {
       setSales(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Sale)));
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'sales');
-      toast.error("Error al cargar las ventas");
+      toast.error(t('sales.error_loading'));
     });
 
     // Fetch inventory items for selection
@@ -274,7 +123,7 @@ export default function Sales({ user }: { user: any }) {
   const handleValidationSuccess = async (validatedUser: any) => {
     if (!pendingSaleData) return;
     setLoading(true);
-    const toastId = toast.loading("Registrando venta...");
+    const toastId = toast.loading(t('sales.registering'));
 
     try {
       const saleData = {
@@ -291,6 +140,14 @@ export default function Sales({ user }: { user: any }) {
       // Update inventory for each item
       for (const item of newItems) {
         if (item.inventoryId) {
+          const itemDoc = await getDoc(doc(db, 'inventory', item.inventoryId));
+          if (itemDoc.exists()) {
+            const currentQty = itemDoc.data().quantity || 0;
+            if (currentQty < item.quantity) {
+              toast.warning(`${t('inventory.low_stock')}: ${item.name}`);
+            }
+          }
+
           await updateDoc(doc(db, 'inventory', item.inventoryId), {
             quantity: increment(-item.quantity)
           });
@@ -308,7 +165,7 @@ export default function Sales({ user }: { user: any }) {
         }
       }
 
-      toast.success("Venta registrada con éxito", { id: toastId });
+      toast.success(t('sales.success'), { id: toastId });
       setIsModalOpen(false);
       resetForm();
       
@@ -319,7 +176,7 @@ export default function Sales({ user }: { user: any }) {
       }
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'sales');
-      toast.error("Error al registrar la venta", { id: toastId });
+      toast.error(t('sales.error'), { id: toastId });
     } finally {
       setLoading(false);
       setPendingSaleData(null);
@@ -376,7 +233,7 @@ export default function Sales({ user }: { user: any }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
             <input 
               type="text" 
-              placeholder="Buscar ventas..." 
+              placeholder={t('sales.search_placeholder')} 
               className="w-full pl-10 pr-4 py-2 bg-white border border-stone-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-stone-900/5 transition-all"
             />
           </div>
@@ -392,7 +249,7 @@ export default function Sales({ user }: { user: any }) {
           className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-xl hover:bg-stone-800 transition-all shadow-lg whitespace-nowrap"
         >
           <Plus size={20} />
-          Registrar Venta
+          {t('sales.register_sale')}
         </button>
       </div>
 
@@ -403,7 +260,7 @@ export default function Sales({ user }: { user: any }) {
           className="bg-white p-4 rounded-2xl border border-stone-200 shadow-sm grid grid-cols-1 md:grid-cols-3 gap-4 items-end"
         >
           <div>
-            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1 ml-1">Fecha Inicio</label>
+            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1 ml-1">{t('sales.start_date')}</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
               <input 
@@ -415,7 +272,7 @@ export default function Sales({ user }: { user: any }) {
             </div>
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1 ml-1">Fecha Fin</label>
+            <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1 ml-1">{t('sales.end_date')}</label>
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={14} />
               <input 
@@ -432,7 +289,7 @@ export default function Sales({ user }: { user: any }) {
               className="flex-1 flex items-center justify-center gap-2 py-2 px-4 bg-stone-100 text-stone-600 rounded-lg hover:bg-stone-200 transition-all text-sm font-bold"
             >
               <X size={14} />
-              Limpiar
+              {t('sales.clear_filters')}
             </button>
           </div>
         </motion.div>
@@ -442,17 +299,17 @@ export default function Sales({ user }: { user: any }) {
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="bg-stone-50 border-b border-stone-200">
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Fecha / Hora</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Plataforma</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Monto</th>
-              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider text-right">Acciones</th>
+              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('sales.table.date')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('sales.table.platform')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('sales.table.amount')}</th>
+              <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider text-right">{t('sales.table.actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-stone-100">
             {sales.map((sale) => (
               <tr key={sale.id} className="hover:bg-stone-50 transition-colors">
                 <td className="px-6 py-4">
-                  <p className="text-sm font-medium">{format(new Date(sale.timestamp), 'd MMM, yyyy', { locale: es })}</p>
+                  <p className="text-sm font-medium">{format(new Date(sale.timestamp), 'd MMM, yyyy', { locale: dateLocale })}</p>
                   <p className="text-xs text-stone-400">{format(new Date(sale.timestamp), 'HH:mm')}</p>
                 </td>
                 <td className="px-6 py-4">
@@ -489,7 +346,7 @@ export default function Sales({ user }: { user: any }) {
         {sales.length === 0 && (
           <div className="p-12 text-center">
             <ShoppingCart size={48} className="mx-auto text-stone-200 mb-4" />
-            <p className="text-stone-500">No se han registrado ventas aún.</p>
+            <p className="text-stone-500">{t('sales.no_sales')}</p>
           </div>
         )}
       </div>
@@ -503,7 +360,7 @@ export default function Sales({ user }: { user: any }) {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">Nueva Venta</h3>
+              <h3 className="text-xl font-bold">{t('sales.new_sale')}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <Plus size={24} className="rotate-45" />
               </button>
@@ -786,7 +643,7 @@ export default function Sales({ user }: { user: any }) {
               </div>
 
               <div className="pt-6 border-t border-stone-200 flex items-center justify-between">
-                <span className="text-lg font-bold">Total</span>
+                <span className="text-lg font-bold">{t('sales.total')}</span>
                 <span className="text-2xl font-black text-stone-900">${selectedSale.amount.toLocaleString()}</span>
               </div>
 
@@ -794,7 +651,7 @@ export default function Sales({ user }: { user: any }) {
                 onClick={() => setSelectedSale(null)}
                 className="w-full bg-stone-100 text-stone-900 py-3 rounded-xl font-bold hover:bg-stone-200 transition-all"
               >
-                Cerrar
+                {t('app.close')}
               </button>
             </div>
           </motion.div>
@@ -819,8 +676,8 @@ export default function Sales({ user }: { user: any }) {
         isOpen={isValidationOpen}
         onClose={() => setIsValidationOpen(false)}
         onSuccess={handleValidationSuccess}
-        title="Confirmar Venta"
-        description="Para finalizar el registro de esta venta, por favor ingrese sus credenciales de validación."
+        title={t('sales.confirm_sale')}
+        description={t('sales.validation_desc')}
       />
     </div>
   );

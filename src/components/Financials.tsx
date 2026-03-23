@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, onSnapshot, updateDoc, doc, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { FinancialRecord, FinancialType } from '../types';
-import { Plus, DollarSign, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, Filter } from 'lucide-react';
+import { Plus, DollarSign, ArrowUpRight, ArrowDownLeft, Clock, CheckCircle, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { format } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es, enUS, ptBR } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../utils';
+import { useTranslation } from 'react-i18next';
 
 export default function Financials({ user }: { user: any }) {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'es' ? es : i18n.language === 'pt' ? ptBR : enUS;
   const [records, setRecords] = useState<FinancialRecord[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,7 +37,7 @@ export default function Financials({ user }: { user: any }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const toastId = toast.loading("Registrando movimiento...");
+    const toastId = toast.loading(t('financials.registering'));
     try {
       await addDoc(collection(db, 'financials'), {
         type,
@@ -47,12 +50,12 @@ export default function Financials({ user }: { user: any }) {
         operatorName: user.displayName,
         createdBy: user.uid,
       });
-      toast.success("Movimiento registrado con éxito", { id: toastId });
+      toast.success(t('financials.success'), { id: toastId });
       setIsModalOpen(false);
       resetForm();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'financials');
-      toast.error("Error al registrar el movimiento", { id: toastId });
+      toast.error(t('financials.error'), { id: toastId });
     } finally {
       setLoading(false);
     }
@@ -60,15 +63,15 @@ export default function Financials({ user }: { user: any }) {
 
   const toggleStatus = async (record: FinancialRecord) => {
     if (!record.id) return;
-    const toastId = toast.loading("Actualizando estado...");
+    const toastId = toast.loading(t('financials.updating_status'));
     try {
       await updateDoc(doc(db, 'financials', record.id), {
         status: record.status === 'pending' ? 'paid' : 'pending'
       });
-      toast.success("Estado actualizado", { id: toastId });
+      toast.success(t('financials.status_updated'), { id: toastId });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'financials');
-      toast.error("Error al actualizar estado", { id: toastId });
+      toast.error(t('financials.error_status'), { id: toastId });
     }
   };
 
@@ -85,7 +88,7 @@ export default function Financials({ user }: { user: any }) {
             className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-xl hover:bg-stone-800 transition-all shadow-lg"
           >
             <Plus size={20} />
-            Nuevo Registro
+            {t('financials.new_record')}
           </button>
         </div>
       </div>
@@ -95,11 +98,11 @@ export default function Financials({ user }: { user: any }) {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-stone-50 border-b border-stone-200">
-                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Descripción</th>
-                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Tipo</th>
-                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Vencimiento</th>
-                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">Monto</th>
-                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider text-right">Estado</th>
+                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('financials.table.description')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('financials.table.type')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('financials.table.due_date')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider">{t('financials.table.amount')}</th>
+                <th className="px-6 py-4 text-xs font-bold text-stone-500 uppercase tracking-wider text-right">{t('financials.table.status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -108,7 +111,7 @@ export default function Financials({ user }: { user: any }) {
                   <td className="px-6 py-4">
                     <p className="text-sm font-medium">{record.description}</p>
                     <div className="flex items-center gap-2">
-                      <p className="text-xs text-stone-400">{format(new Date(record.timestamp), 'd MMM', { locale: es })}</p>
+                      <p className="text-xs text-stone-400">{format(new Date(record.timestamp), 'd MMM', { locale: dateLocale })}</p>
                       {record.invoiceNumber && (
                         <>
                           <span className="text-[10px] text-stone-300">•</span>
@@ -116,7 +119,7 @@ export default function Financials({ user }: { user: any }) {
                         </>
                       )}
                       <span className="text-[10px] text-stone-300">•</span>
-                      <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {record.operatorName || 'Sistema'}</p>
+                      <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {record.operatorName || t('app.system')}</p>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -125,11 +128,11 @@ export default function Financials({ user }: { user: any }) {
                       record.type === 'expense' ? 'bg-rose-100 text-rose-600' :
                       record.type === 'payable' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
                     }`}>
-                      {record.type}
+                      {t(`financials.types.${record.type}`)}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-sm text-stone-500">
-                    {record.dueDate ? format(new Date(record.dueDate), 'd MMM, yyyy', { locale: es }) : '-'}
+                    {record.dueDate ? format(new Date(record.dueDate), 'd MMM, yyyy', { locale: dateLocale }) : '-'}
                   </td>
                   <td className="px-6 py-4 font-bold text-stone-900">
                     ${record.amount.toLocaleString()}
@@ -152,16 +155,16 @@ export default function Financials({ user }: { user: any }) {
 
         <div className="space-y-6">
           <div className="bg-white p-6 rounded-2xl border border-stone-200 shadow-sm">
-            <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-4">Resumen</h4>
+            <h4 className="text-sm font-bold text-stone-400 uppercase tracking-wider mb-4">{t('financials.summary')}</h4>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-500">Por Pagar</span>
+                <span className="text-sm text-stone-500">{t('financials.to_pay')}</span>
                 <span className="font-bold text-rose-600">
                   ${records.filter(r => r.type === 'payable' && r.status === 'pending').reduce((s, r) => s + r.amount, 0).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-sm text-stone-500">Por Cobrar</span>
+                <span className="text-sm text-stone-500">{t('financials.to_collect')}</span>
                 <span className="font-bold text-blue-600">
                   ${records.filter(r => r.type === 'receivable' && r.status === 'pending').reduce((s, r) => s + r.amount, 0).toLocaleString()}
                 </span>
@@ -180,7 +183,7 @@ export default function Financials({ user }: { user: any }) {
             className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">Nuevo Registro Financiero</h3>
+              <h3 className="text-xl font-bold">{t('financials.new_record')}</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <Plus size={24} className="rotate-45" />
               </button>
@@ -188,46 +191,46 @@ export default function Financials({ user }: { user: any }) {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Tipo</label>
+                <label className="block text-sm font-medium mb-1">{t('financials.table.type')}</label>
                 <div className="grid grid-cols-2 gap-2">
-                  {(['income', 'expense', 'payable', 'receivable'] as FinancialType[]).map((t) => (
+                  {(['income', 'expense', 'payable', 'receivable'] as FinancialType[]).map((t_key) => (
                     <button
-                      key={t}
+                      key={t_key}
                       type="button"
-                      onClick={() => setType(t)}
+                      onClick={() => setType(t_key)}
                       className={`py-2 px-3 rounded-xl text-xs font-bold border transition-all ${
-                        type === t 
+                        type === t_key 
                           ? 'bg-stone-900 border-stone-900 text-white shadow-md' 
                           : 'bg-white border-stone-200 text-stone-500 hover:border-stone-400'
                       }`}
                     >
-                      {t}
+                      {t(`financials.types.${t_key}`)}
                     </button>
                   ))}
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Monto</label>
+                <label className="block text-sm font-medium mb-1">{t('financials.table.amount')}</label>
                 <input type="number" value={amount} onChange={e => setAmount(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Descripción</label>
+                <label className="block text-sm font-medium mb-1">{t('financials.table.description')}</label>
                 <input type="text" value={description} onChange={e => setDescription(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
               </div>
               {type === 'expense' && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Nº Factura (Opcional)</label>
+                  <label className="block text-sm font-medium mb-1">{t('financials.invoice_optional')}</label>
                   <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" />
                 </div>
               )}
               {(type === 'payable' || type === 'receivable') && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">Fecha de Vencimiento</label>
+                  <label className="block text-sm font-medium mb-1">{t('financials.table.due_date')}</label>
                   <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} className="w-full p-2 bg-stone-50 border border-stone-200 rounded-lg" required />
                 </div>
               )}
               <button type="submit" disabled={loading} className="w-full bg-stone-900 text-white py-3 rounded-xl font-bold mt-4 shadow-lg">
-                {loading ? 'Guardando...' : 'Guardar Registro'}
+                {loading ? t('app.saving') : t('financials.save_record')}
               </button>
             </form>
           </motion.div>

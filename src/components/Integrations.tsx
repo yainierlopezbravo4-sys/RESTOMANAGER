@@ -7,8 +7,10 @@ import { motion, AnimatePresence } from 'motion/react';
 import { handleFirestoreError, OperationType } from '../utils';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function Integrations({ user }: { user: any }) {
+  const { t } = useTranslation();
   const [taxIntegrations, setTaxIntegrations] = useState<TaxIntegration[]>([]);
   const [deliveryIntegrations, setDeliveryIntegrations] = useState<DeliveryIntegration[]>([]);
   const [activeTab, setActiveTab] = useState<'tax' | 'delivery'>('tax');
@@ -65,9 +67,9 @@ export default function Integrations({ user }: { user: any }) {
       });
       setIsTaxModalOpen(false);
       setTaxForm({ country: '', entityName: '', apiUrl: '', apiKey: '', apiSecret: '', status: 'inactive' });
-      toast.success('Entidad tributaria añadida con éxito');
+      toast.success(t('integrations.tax_success'));
     } catch (error) {
-      toast.error('Error al añadir entidad tributaria');
+      toast.error(t('integrations.tax_error'));
       handleFirestoreError(error, OperationType.CREATE, 'taxIntegrations');
     } finally {
       setLoading(false);
@@ -84,9 +86,9 @@ export default function Integrations({ user }: { user: any }) {
       });
       setIsDeliveryModalOpen(false);
       setDeliveryForm({ platform: 'iFood', clientId: '', clientSecret: '', merchantId: '', autoAcceptOrders: false, status: 'disconnected' });
-      toast.success('Plataforma de delivery añadida con éxito');
+      toast.success(t('integrations.delivery_success'));
     } catch (error) {
-      toast.error('Error al añadir plataforma de delivery');
+      toast.error(t('integrations.delivery_error'));
       handleFirestoreError(error, OperationType.CREATE, 'deliveryIntegrations');
     } finally {
       setLoading(false);
@@ -99,15 +101,15 @@ export default function Integrations({ user }: { user: any }) {
         status: currentStatus === 'active' ? 'inactive' : 'active',
         lastSync: new Date().toISOString()
       });
-      toast.success(`Integración ${currentStatus === 'active' ? 'desactivada' : 'activada'}`);
+      toast.success(t('integrations.status_changed', { status: currentStatus === 'active' ? t('integrations.inactive') : t('integrations.active') }));
     } catch (error) {
-      toast.error('Error al cambiar estado de integración');
+      toast.error(t('integrations.status_error'));
       handleFirestoreError(error, OperationType.UPDATE, 'taxIntegrations');
     }
   };
 
   const testTaxConnection = async (id: string) => {
-    toast.loading('Probando conexión...', { id: 'test-tax' });
+    toast.loading(t('integrations.testing_connection'), { id: 'test-tax' });
     try {
       // Mock API call
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -115,29 +117,29 @@ export default function Integrations({ user }: { user: any }) {
         await updateDoc(doc(db, 'taxIntegrations', id), {
           lastSync: new Date().toISOString()
         });
-        toast.success('Conexión exitosa con la entidad tributaria', { id: 'test-tax' });
+        toast.success(t('integrations.test_success'), { id: 'test-tax' });
       } else {
         throw new Error('Timeout de conexión');
       }
     } catch (error) {
-      toast.error('Error de conexión: Verifique las credenciales', { id: 'test-tax' });
+      toast.error(t('integrations.test_error'), { id: 'test-tax' });
     }
   };
 
   const deleteTax = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta integración?')) return;
+    if (!confirm(t('integrations.confirm_delete'))) return;
     try {
       await deleteDoc(doc(db, 'taxIntegrations', id));
-      toast.success('Integración eliminada');
+      toast.success(t('integrations.deleted_success'));
     } catch (error) {
-      toast.error('Error al eliminar integración');
+      toast.error(t('integrations.deleted_error'));
       handleFirestoreError(error, OperationType.DELETE, 'taxIntegrations');
     }
   };
 
   const connectDelivery = async (id: string) => {
     setLoading(true);
-    toast.loading('Conectando con la plataforma...', { id: 'connect-delivery' });
+    toast.loading(t('integrations.connecting_platform'), { id: 'connect-delivery' });
     try {
       // Simulate OAuth flow delay
       await new Promise(resolve => setTimeout(resolve, 1500));
@@ -146,9 +148,9 @@ export default function Integrations({ user }: { user: any }) {
         accessToken: 'mock_token_' + Math.random().toString(36).substring(7),
         tokenExpiresAt: new Date(Date.now() + 3600000).toISOString()
       });
-      toast.success('Plataforma conectada correctamente', { id: 'connect-delivery' });
+      toast.success(t('integrations.platform_connected'), { id: 'connect-delivery' });
     } catch (error) {
-      toast.error('Error al conectar con la plataforma', { id: 'connect-delivery' });
+      toast.error(t('integrations.platform_error'), { id: 'connect-delivery' });
       handleFirestoreError(error, OperationType.UPDATE, 'deliveryIntegrations');
     } finally {
       setLoading(false);
@@ -160,20 +162,20 @@ export default function Integrations({ user }: { user: any }) {
       await updateDoc(doc(db, 'deliveryIntegrations', id), {
         autoAcceptOrders: !current
       });
-      toast.success(`Auto-aceptación ${!current ? 'activada' : 'desactivada'}`);
+      toast.success(t('integrations.auto_accept_changed', { status: !current ? t('integrations.active') : t('integrations.inactive') }));
     } catch (error) {
-      toast.error('Error al cambiar configuración');
+      toast.error(t('integrations.config_error'));
       handleFirestoreError(error, OperationType.UPDATE, 'deliveryIntegrations');
     }
   };
 
   const deleteDelivery = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar esta integración?')) return;
+    if (!confirm(t('integrations.confirm_delete'))) return;
     try {
       await deleteDoc(doc(db, 'deliveryIntegrations', id));
-      toast.success('Plataforma eliminada');
+      toast.success(t('integrations.platform_deleted'));
     } catch (error) {
-      toast.error('Error al eliminar plataforma');
+      toast.error(t('integrations.platform_delete_error'));
       handleFirestoreError(error, OperationType.DELETE, 'deliveryIntegrations');
     }
   };
@@ -182,21 +184,21 @@ export default function Integrations({ user }: { user: any }) {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">Integraciones Externas</h2>
-          <p className="text-stone-500 text-sm">Gestiona conexiones con entidades gubernamentales y plataformas de delivery.</p>
+          <h2 className="text-2xl font-black text-stone-900 uppercase tracking-tight">{t('integrations.title')}</h2>
+          <p className="text-stone-500 text-sm">{t('integrations.description')}</p>
         </div>
         <div className="flex bg-stone-100 p-1 rounded-xl">
           <button
             onClick={() => setActiveTab('tax')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'tax' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
           >
-            Gubernamentales
+            {t('integrations.tabs.tax')}
           </button>
           <button
             onClick={() => setActiveTab('delivery')}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${activeTab === 'delivery' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
           >
-            Delivery
+            {t('integrations.tabs.delivery')}
           </button>
         </div>
       </div>
@@ -218,7 +220,7 @@ export default function Integrations({ user }: { user: any }) {
                 <div className="p-4 bg-stone-50 rounded-2xl group-hover:bg-stone-100 transition-colors">
                   <Plus size={32} />
                 </div>
-                <span className="font-bold uppercase tracking-widest text-[10px]">Nueva Entidad Tributaria</span>
+                <span className="font-bold uppercase tracking-widest text-[10px]">{t('integrations.new_tax_entity')}</span>
               </button>
 
               {taxIntegrations.map((integration) => (
@@ -254,13 +256,13 @@ export default function Integrations({ user }: { user: any }) {
                   </div>
                   <div className="mt-6 pt-4 border-t border-stone-100 flex items-center justify-between">
                     <span className="text-[10px] text-stone-400">
-                      {integration.lastSync ? `Sincronizado: ${format(new Date(integration.lastSync), 'dd/MM HH:mm')}` : 'Sin sincronizar'}
+                      {integration.lastSync ? `${t('integrations.synced')}: ${format(new Date(integration.lastSync), 'dd/MM HH:mm')}` : t('integrations.not_synced')}
                     </span>
                     <button 
                       onClick={() => testTaxConnection(integration.id!)}
                       className="text-[10px] font-bold uppercase text-stone-900 flex items-center gap-1 hover:underline"
                     >
-                      Probar <RefreshCw size={10} />
+                      {t('integrations.test')} <RefreshCw size={10} />
                     </button>
                   </div>
                 </div>
@@ -283,7 +285,7 @@ export default function Integrations({ user }: { user: any }) {
                 <div className="p-4 bg-stone-50 rounded-2xl group-hover:bg-stone-100 transition-colors">
                   <Plus size={32} />
                 </div>
-                <span className="font-bold uppercase tracking-widest text-[10px]">Nueva Plataforma Delivery</span>
+                <span className="font-bold uppercase tracking-widest text-[10px]">{t('integrations.new_delivery_platform')}</span>
               </button>
 
               {deliveryIntegrations.map((integration) => (
@@ -312,10 +314,10 @@ export default function Integrations({ user }: { user: any }) {
                     </div>
                     <div className="flex items-center gap-2">
                       <div className={`w-2 h-2 rounded-full ${integration.status === 'connected' ? 'bg-emerald-500' : 'bg-stone-300'}`} />
-                      <span className="text-[10px] font-bold uppercase text-stone-500">{integration.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
+                      <span className="text-[10px] font-bold uppercase text-stone-500">{integration.status === 'connected' ? t('integrations.connected') : t('integrations.disconnected')}</span>
                     </div>
                     <div className="flex items-center justify-between p-3 bg-stone-50 rounded-2xl">
-                      <span className="text-[10px] font-bold text-stone-500 uppercase">Auto-Aceptar</span>
+                      <span className="text-[10px] font-bold text-stone-500 uppercase">{t('integrations.auto_accept')}</span>
                       <button
                         onClick={() => toggleAutoAccept(integration.id!, integration.autoAcceptOrders)}
                         className={`w-8 h-4 rounded-full relative transition-colors ${integration.autoAcceptOrders ? 'bg-stone-900' : 'bg-stone-200'}`}
@@ -329,7 +331,7 @@ export default function Integrations({ user }: { user: any }) {
                       disabled={integration.status !== 'connected'}
                       className="w-full py-2 bg-stone-900 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-stone-800 transition-all disabled:opacity-50"
                     >
-                      Gestionar Pedidos <ExternalLink size={12} />
+                      {t('integrations.manage_orders')} <ExternalLink size={12} />
                     </button>
                   </div>
                 </div>
@@ -348,7 +350,7 @@ export default function Integrations({ user }: { user: any }) {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">Nueva Entidad Tributaria</h3>
+              <h3 className="text-xl font-bold">{t('integrations.new_tax_entity')}</h3>
               <button onClick={() => setIsTaxModalOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <Plus size={24} className="rotate-45" />
               </button>
@@ -357,7 +359,7 @@ export default function Integrations({ user }: { user: any }) {
             <form onSubmit={handleTaxSubmit} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">País</label>
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">{t('integrations.form.country')}</label>
                   <input
                     type="text"
                     required
@@ -368,7 +370,7 @@ export default function Integrations({ user }: { user: any }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Entidad</label>
+                  <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">{t('integrations.form.entity')}</label>
                   <input
                     type="text"
                     required
@@ -380,7 +382,7 @@ export default function Integrations({ user }: { user: any }) {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Endpoint API</label>
+                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">{t('integrations.form.api_endpoint')}</label>
                 <input
                   type="url"
                   required
@@ -401,7 +403,7 @@ export default function Integrations({ user }: { user: any }) {
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">API Secret (Opcional)</label>
+                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">API Secret ({t('app.optional')})</label>
                 <input
                   type="password"
                   value={taxForm.apiSecret}
@@ -414,7 +416,7 @@ export default function Integrations({ user }: { user: any }) {
                 disabled={loading}
                 className="w-full bg-stone-900 text-white py-3 rounded-2xl font-bold mt-4 shadow-lg hover:bg-stone-800 transition-all disabled:opacity-50"
               >
-                {loading ? 'Guardando...' : 'Guardar Configuración'}
+                {loading ? t('app.saving') : t('integrations.save_config')}
               </button>
             </form>
           </motion.div>
@@ -430,7 +432,7 @@ export default function Integrations({ user }: { user: any }) {
             className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-8"
           >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold">Nueva Plataforma Delivery</h3>
+              <h3 className="text-xl font-bold">{t('integrations.new_delivery_platform')}</h3>
               <button onClick={() => setIsDeliveryModalOpen(false)} className="text-stone-400 hover:text-stone-900">
                 <Plus size={24} className="rotate-45" />
               </button>
@@ -438,7 +440,7 @@ export default function Integrations({ user }: { user: any }) {
 
             <form onSubmit={handleDeliverySubmit} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">Plataforma</label>
+                <label className="block text-[10px] font-bold text-stone-400 uppercase mb-1">{t('integrations.form.platform')}</label>
                 <select
                   value={deliveryForm.platform}
                   onChange={e => setDeliveryForm({ ...deliveryForm, platform: e.target.value as any })}
@@ -484,8 +486,8 @@ export default function Integrations({ user }: { user: any }) {
               </div>
               <div className="flex items-center justify-between p-4 bg-stone-50 rounded-2xl">
                 <div>
-                  <p className="text-xs font-bold uppercase">Auto-Aceptar Pedidos</p>
-                  <p className="text-[10px] text-stone-400">Acepta pedidos automáticamente al recibirlos.</p>
+                  <p className="text-xs font-bold uppercase">{t('integrations.auto_accept')}</p>
+                  <p className="text-[10px] text-stone-400">{t('integrations.auto_accept_desc')}</p>
                 </div>
                 <button
                   type="button"
@@ -500,7 +502,7 @@ export default function Integrations({ user }: { user: any }) {
                 disabled={loading}
                 className="w-full bg-stone-900 text-white py-3 rounded-2xl font-bold mt-4 shadow-lg hover:bg-stone-800 transition-all disabled:opacity-50"
               >
-                {loading ? 'Conectando...' : 'Conectar Plataforma'}
+                {loading ? t('integrations.connecting') : t('integrations.connect_platform')}
               </button>
             </form>
           </motion.div>

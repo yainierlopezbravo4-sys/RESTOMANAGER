@@ -2,17 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { collection, addDoc, query, onSnapshot, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
 import { Closure, Sale, FinancialRecord, ClosureType } from '../types';
-import { FileText, Download, Calendar, TrendingUp, TrendingDown, PieChart, Printer } from 'lucide-react';
+import { FileText, Download, Calendar, TrendingUp, TrendingDown, PieChart, Printer, X } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subDays } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { es, enUS, ptBR } from 'date-fns/locale';
 import { handleFirestoreError, OperationType } from '../utils';
 import ValidationModal from './ValidationModal';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { doc as firestoreDoc, getDoc } from 'firebase/firestore';
 import { BusinessSettings } from '../types';
+import { useTranslation } from 'react-i18next';
 
 export default function Reports({ user }: { user: any }) {
+  const { t, i18n } = useTranslation();
+  const dateLocale = i18n.language === 'es' ? es : i18n.language === 'pt' ? ptBR : enUS;
   const [closures, setClosures] = useState<Closure[]>([]);
   const [businessSettings, setBusinessSettings] = useState<BusinessSettings | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -117,7 +120,7 @@ export default function Reports({ user }: { user: any }) {
         const item = inventorySnap.docs.find(i => i.id === data.itemId)?.data();
         return {
           invoiceNumber: data.invoiceNumber || 'N/A',
-          description: `Compra: ${item?.name || 'Producto'} (${data.quantity} x $${data.unitPrice})`,
+          description: `${t('inventory.purchase')}: ${item?.name || t('inventory.product')} (${data.quantity} x $${data.unitPrice})`,
           amount: data.totalValue,
           timestamp: data.timestamp
         };
@@ -227,24 +230,24 @@ export default function Reports({ user }: { user: any }) {
     // Title
     doc.setFontSize(14);
     doc.setTextColor(28, 25, 23);
-    const closureTitle = `CIERRE ${closure.type.toUpperCase()}`;
+    const closureTitle = `${t('reports.closure').toUpperCase()} ${t(`reports.types.${closure.type}`).toUpperCase()}`;
     doc.text(closureTitle, 20, 50);
 
     doc.setFontSize(9);
     doc.setTextColor(120, 113, 108);
-    const period = `${format(new Date(closure.startDate), 'd MMMM yyyy', { locale: es })} - ${format(new Date(closure.endDate), 'd MMMM yyyy', { locale: es })}`;
-    doc.text(`Periodo: ${period}`, 20, 56);
-    doc.text(`Generado el: ${format(new Date(closure.timestamp), 'd MMM yyyy, HH:mm', { locale: es })}`, 20, 61);
-    doc.text(`Operador: ${closure.operatorName || 'Sistema'}`, 20, 66);
+    const period = `${format(new Date(closure.startDate), 'd MMMM yyyy', { locale: dateLocale })} - ${format(new Date(closure.endDate), 'd MMMM yyyy', { locale: dateLocale })}`;
+    doc.text(`${t('reports.period')}: ${period}`, 20, 56);
+    doc.text(`${t('reports.generated_at')}: ${format(new Date(closure.timestamp), 'd MMM yyyy, HH:mm', { locale: dateLocale })}`, 20, 61);
+    doc.text(`${t('reports.operator')}: ${closure.operatorName || t('app.system')}`, 20, 66);
 
     // Financial Summary Table
     autoTable(doc, {
       startY: 75,
-      head: [['Concepto', 'Valor']],
+      head: [[t('reports.concept'), t('reports.value')]],
       body: [
-        ['Total Ventas', `$${closure.totalSales.toLocaleString()}`],
-        ['Total Gastos', `$${closure.totalExpenses.toLocaleString()}`],
-        ['Beneficio Neto', `$${closure.netProfit.toLocaleString()}`],
+        [t('reports.total_sales'), `$${closure.totalSales.toLocaleString()}`],
+        [t('reports.total_expenses'), `$${closure.totalExpenses.toLocaleString()}`],
+        [t('reports.net_profit'), `$${closure.netProfit.toLocaleString()}`],
       ],
       theme: 'striped',
       styles: { font: 'courier' },
@@ -256,11 +259,11 @@ export default function Reports({ user }: { user: any }) {
     if (closure.salesDetails && closure.salesDetails.length > 0) {
       doc.setFontSize(12);
       doc.setTextColor(28, 25, 23);
-      doc.text('DETALLE DE VENTAS POR PRODUCTO', 20, (doc as any).lastAutoTable.finalY + 15);
+      doc.text(t('reports.sales_detail').toUpperCase(), 20, (doc as any).lastAutoTable.finalY + 15);
       
       autoTable(doc, {
         startY: (doc as any).lastAutoTable.finalY + 20,
-        head: [['Código', 'Producto', 'Cant.', 'P. Unit', 'Total']],
+        head: [[t('inventory.table.code'), t('inventory.table.product'), t('reports.qty'), t('reports.unit_price'), t('reports.total')]],
         body: closure.salesDetails.map(s => [
           s.code,
           s.name,
@@ -280,11 +283,11 @@ export default function Reports({ user }: { user: any }) {
       doc.addPage();
       doc.setFont('courier', 'normal');
       doc.setFontSize(12);
-      doc.text('DETALLE DE GASTOS', 20, 20);
+      doc.text(t('reports.expenses_detail').toUpperCase(), 20, 20);
 
       autoTable(doc, {
         startY: 25,
-        head: [['Factura', 'Descripción', 'Fecha', 'Valor']],
+        head: [[t('inventory.invoice'), t('financials.table.description'), t('reports.date'), t('reports.value')]],
         body: closure.expenseDetails.map(e => [
           e.invoiceNumber || 'N/A',
           e.description,
@@ -303,11 +306,11 @@ export default function Reports({ user }: { user: any }) {
       doc.addPage();
       doc.setFont('courier', 'normal');
       doc.setFontSize(12);
-      doc.text('DETALLE DE ALMACÉN', 20, 20);
+      doc.text(t('reports.inventory_detail').toUpperCase(), 20, 20);
 
       autoTable(doc, {
         startY: 25,
-        head: [['Código', 'Producto', 'S. Ant', 'Ent.', 'Sal.', 'S. Act']],
+        head: [[t('inventory.table.code'), t('inventory.table.product'), t('reports.prev_stock'), t('reports.entries'), t('reports.exits'), t('reports.curr_stock')]],
         body: closure.inventoryDetails.map(i => [
           i.code,
           i.name,
@@ -330,14 +333,14 @@ export default function Reports({ user }: { user: any }) {
       
       if (closure.accountsPayable && closure.accountsPayable.length > 0) {
         doc.setFontSize(12);
-        doc.text('CUENTAS POR PAGAR', 20, 20);
+        doc.text(t('financials.to_pay').toUpperCase(), 20, 20);
         autoTable(doc, {
           startY: 25,
-          head: [['Descripción', 'Vencimiento', 'Estado', 'Valor']],
+          head: [[t('financials.table.description'), t('financials.table.due_date'), t('financials.table.status'), t('financials.table.amount')]],
           body: closure.accountsPayable.map(a => [
             a.description,
             a.dueDate ? format(new Date(a.dueDate), 'dd/MM/yy') : 'N/A',
-            a.status === 'paid' ? 'Pagado' : 'Pendiente',
+            a.status === 'paid' ? t('financials.paid') : t('financials.pending'),
             `$${a.amount.toLocaleString()}`
           ]),
           theme: 'grid',
@@ -350,14 +353,14 @@ export default function Reports({ user }: { user: any }) {
       if (closure.accountsReceivable && closure.accountsReceivable.length > 0) {
         const startY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 15 : 20;
         doc.setFontSize(12);
-        doc.text('CUENTAS POR COBRAR', 20, startY);
+        doc.text(t('financials.to_collect').toUpperCase(), 20, startY);
         autoTable(doc, {
           startY: startY + 5,
-          head: [['Descripción', 'Vencimiento', 'Estado', 'Valor']],
+          head: [[t('financials.table.description'), t('financials.table.due_date'), t('financials.table.status'), t('financials.table.amount')]],
           body: closure.accountsReceivable.map(a => [
             a.description,
             a.dueDate ? format(new Date(a.dueDate), 'dd/MM/yy') : 'N/A',
-            a.status === 'paid' ? 'Cobrado' : 'Pendiente',
+            a.status === 'paid' ? t('financials.collected') : t('financials.pending'),
             `$${a.amount.toLocaleString()}`
           ]),
           theme: 'grid',
@@ -372,7 +375,7 @@ export default function Reports({ user }: { user: any }) {
     const footerY = doc.internal.pageSize.getHeight() - 20;
     doc.setFontSize(8);
     doc.setTextColor(168, 162, 158); // stone-400
-    doc.text('Documento generado automáticamente por RestoManager Pro', pageWidth / 2, footerY, { align: 'center' });
+    doc.text(t('reports.auto_generated'), pageWidth / 2, footerY, { align: 'center' });
 
     // Action
     if (action === 'save') {
@@ -390,7 +393,7 @@ export default function Reports({ user }: { user: any }) {
           className="flex items-center gap-2 bg-stone-900 text-white px-4 py-2 rounded-xl hover:bg-stone-800 transition-all shadow-lg"
         >
           <PieChart size={20} />
-          Generar Cierre
+          {t('reports.generate_closure')}
         </button>
       </div>
 
@@ -402,40 +405,40 @@ export default function Reports({ user }: { user: any }) {
                 <FileText size={24} className="text-stone-600" />
               </div>
               <div>
-                <h4 className="font-bold capitalize">Cierre {closure.type}</h4>
+                <h4 className="font-bold capitalize">{t('reports.closure')} {t(`reports.types.${closure.type}`)}</h4>
                 <div className="flex items-center gap-2">
                   <p className="text-xs text-stone-500">
-                    {format(new Date(closure.startDate), 'd MMM', { locale: es })} - {format(new Date(closure.endDate), 'd MMM, yyyy', { locale: es })}
+                    {format(new Date(closure.startDate), 'd MMM', { locale: dateLocale })} - {format(new Date(closure.endDate), 'd MMM, yyyy', { locale: dateLocale })}
                   </p>
                   <span className="text-[10px] text-stone-300">•</span>
-                  <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {closure.operatorName || 'Sistema'}</p>
+                  <p className="text-[10px] text-stone-500 font-medium uppercase">Op: {closure.operatorName || t('app.system')}</p>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 flex-1 max-w-5xl">
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Ventas ($)</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">{t('reports.total_sales')} ($)</p>
                 <p className="text-sm font-bold text-emerald-600">${closure.totalSales.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Items Vendidos</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">{t('reports.sold_items')}</p>
                 <p className="text-sm font-bold text-stone-600">{closure.totalSalesItems || 0}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Gastos</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">{t('reports.total_expenses')}</p>
                 <p className="text-sm font-bold text-rose-600">${closure.totalExpenses.toLocaleString()}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Entradas Almacén</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">{t('reports.entries')}</p>
                 <p className="text-sm font-bold text-blue-600">{closure.totalInventoryEntries || 0}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Salidas Almacén</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">{t('reports.exits')}</p>
                 <p className="text-sm font-bold text-orange-600">{closure.totalInventoryExits || 0}</p>
               </div>
               <div>
-                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">Neto</p>
+                <p className="text-[10px] font-bold text-stone-400 uppercase mb-1">{t('reports.net_profit')}</p>
                 <p className="text-sm font-bold text-stone-900">${closure.netProfit.toLocaleString()}</p>
               </div>
             </div>
@@ -444,14 +447,14 @@ export default function Reports({ user }: { user: any }) {
               <button 
                 onClick={() => generatePDF(closure)}
                 className="p-2 text-stone-400 hover:text-stone-900 transition-colors flex items-center gap-1"
-                title="Descargar PDF"
+                title={t('reports.download_pdf')}
               >
                 <Download size={20} />
               </button>
               <button 
                 onClick={() => generatePDF(closure, 'preview')}
                 className="p-2 text-stone-400 hover:text-stone-900 transition-colors flex items-center gap-1"
-                title="Vista Previa / Imprimir"
+                title={t('reports.preview_print')}
               >
                 <Printer size={20} />
               </button>
@@ -462,7 +465,7 @@ export default function Reports({ user }: { user: any }) {
         {closures.length === 0 && (
           <div className="bg-white p-12 rounded-2xl border border-dashed border-stone-300 text-center">
             <Calendar size={48} className="mx-auto text-stone-200 mb-4" />
-            <p className="text-stone-500">No hay cierres generados aún.</p>
+            <p className="text-stone-500">{t('reports.no_closures')}</p>
           </div>
         )}
       </div>
@@ -471,28 +474,28 @@ export default function Reports({ user }: { user: any }) {
       {isModalOpen && (
         <div className="fixed inset-0 bg-stone-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8">
-            <h3 className="text-xl font-bold mb-6">Generar Nuevo Cierre</h3>
+            <h3 className="text-xl font-bold mb-6">{t('reports.generate_new_closure')}</h3>
             <div className="space-y-4">
-              <p className="text-sm text-stone-500">Selecciona el periodo para el cierre financiero automático.</p>
+              <p className="text-sm text-stone-500">{t('reports.select_period_desc')}</p>
               <div className="grid grid-cols-1 gap-2">
-                {(['daily', 'decadal', 'monthly', 'annual'] as ClosureType[]).map((t) => (
+                {(['daily', 'decadal', 'monthly', 'annual'] as ClosureType[]).map((t_key) => (
                   <button
-                    key={t}
-                    onClick={() => setType(t)}
+                    key={t_key}
+                    onClick={() => setType(t_key)}
                     className={`p-4 rounded-xl text-left border transition-all ${
-                      type === t ? 'bg-stone-900 border-stone-900 text-white' : 'bg-stone-50 border-stone-200 hover:border-stone-400'
+                      type === t_key ? 'bg-stone-900 border-stone-900 text-white' : 'bg-stone-50 border-stone-200 hover:border-stone-400'
                     }`}
                   >
-                    <p className="font-bold capitalize">{t === 'daily' ? 'Diario' : t === 'decadal' ? 'Decadal' : t === 'monthly' ? 'Mensual' : 'Anual'}</p>
-                    <p className={`text-xs ${type === t ? 'text-stone-300' : 'text-stone-500'}`}>
-                      {t === 'daily' ? 'Hoy' : t === 'decadal' ? 'Últimos 10 días' : t === 'monthly' ? 'Mes actual' : 'Año actual'}
+                    <p className="font-bold capitalize">{t(`reports.types.${t_key}`)}</p>
+                    <p className={`text-xs ${type === t_key ? 'text-stone-300' : 'text-stone-500'}`}>
+                      {t(`reports.periods.${t_key}`)}
                     </p>
                   </button>
                 ))}
               </div>
               <div className="flex gap-3 mt-8">
-                <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3 rounded-xl font-bold border border-stone-200 hover:bg-stone-50">Cancelar</button>
-                <button onClick={handleGenerateClick} className="flex-1 py-3 rounded-xl font-bold bg-stone-900 text-white hover:bg-stone-800">Generar</button>
+                <button onClick={() => setIsModalOpen(false)} className="flex-1 py-3 rounded-xl font-bold border border-stone-200 hover:bg-stone-50">{t('app.cancel')}</button>
+                <button onClick={handleGenerateClick} className="flex-1 py-3 rounded-xl font-bold bg-stone-900 text-white hover:bg-stone-800">{t('reports.generate')}</button>
               </div>
             </div>
           </div>
@@ -503,8 +506,8 @@ export default function Reports({ user }: { user: any }) {
         isOpen={isValidationOpen}
         onClose={() => setIsValidationOpen(false)}
         onSuccess={generateClosure}
-        title="Validar Generación de Cierre"
-        description="Se requiere el código de autorización del administrador para generar un nuevo cierre financiero."
+        title={t('reports.validate_generation')}
+        description={t('reports.validation_desc')}
       />
     </div>
   );
