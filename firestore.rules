@@ -121,6 +121,20 @@ service cloud.firestore {
              data.status in ['active', 'inactive'];
     }
 
+    function isValidTaxIntegration(data) {
+      return hasRequiredFields(['country', 'entityName', 'apiUrl', 'apiKey', 'status']) &&
+             validString('country', 1, 100) &&
+             validString('entityName', 1, 200) &&
+             validString('apiUrl', 1, 500) &&
+             data.status in ['active', 'inactive'];
+    }
+
+    function isValidDeliveryIntegration(data) {
+      return hasRequiredFields(['platform', 'clientId', 'clientSecret', 'status']) &&
+             data.platform in ['iFood', '99food', 'Uber Eats', 'Rappi'] &&
+             data.status in ['connected', 'disconnected'];
+    }
+
     // ===============================================================
     // Rules
     // ===============================================================
@@ -185,6 +199,15 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin() && isValidIntegration(request.resource.data);
     }
+
+    match /taxIntegrations/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidTaxIntegration(request.resource.data);
+    }
+
+    match /deliveryIntegrations/{id} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isValidDeliveryIntegration(request.resource.data);
+    }
   }
 }
-node -v

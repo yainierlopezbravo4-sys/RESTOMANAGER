@@ -117,6 +117,31 @@ export interface Integration {
   endpoint?: string;
 }
 
+export interface TaxIntegration {
+  id?: string;
+  country: string;
+  entityName: string;
+  apiUrl: string;
+  apiKey: string;
+  apiSecret?: string;
+  certificate?: string;
+  status: 'active' | 'inactive';
+  lastSync?: string;
+}
+
+export interface DeliveryIntegration {
+  id?: string;
+  platform: 'iFood' | '99food' | 'Uber Eats' | 'Rappi';
+  clientId: string;
+  clientSecret: string;
+  merchantId?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  tokenExpiresAt?: string;
+  status: 'connected' | 'disconnected';
+  autoAcceptOrders: boolean;
+}
+
 export interface Closure {
   id?: string;
   type: ClosureType;

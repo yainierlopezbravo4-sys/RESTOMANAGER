@@ -170,6 +170,35 @@
         "apiKey": { "type": "string" },
         "endpoint": { "type": "string" }
       }
+    },
+    "TaxIntegration": {
+      "title": "Tax Integration",
+      "description": "Government tax entity integration",
+      "type": "object",
+      "properties": {
+        "country": { "type": "string" },
+        "entityName": { "type": "string" },
+        "apiUrl": { "type": "string" },
+        "apiKey": { "type": "string" },
+        "apiSecret": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "inactive"] },
+        "lastSync": { "type": "string", "format": "date-time" }
+      },
+      "required": ["country", "entityName", "apiUrl", "apiKey", "status"]
+    },
+    "DeliveryIntegration": {
+      "title": "Delivery Integration",
+      "description": "Private delivery platform integration",
+      "type": "object",
+      "properties": {
+        "platform": { "type": "string", "enum": ["iFood", "99food", "Uber Eats", "Rappi"] },
+        "clientId": { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "merchantId": { "type": "string" },
+        "status": { "type": "string", "enum": ["connected", "disconnected"] },
+        "autoAcceptOrders": { "type": "boolean" }
+      },
+      "required": ["platform", "clientId", "clientSecret", "status"]
     }
   },
   "firestore": {
@@ -182,6 +211,8 @@
     "/closures/{closureId}": { "schema": "Closure", "description": "Financial reports" },
     "/settings/{settingId}": { "schema": "PaymentSettings | BusinessSettings | GeneralSettings", "description": "Global application settings" },
     "/notifications/{notificationId}": { "schema": "NotificationLog", "description": "System event logs" },
-    "/integrations/{integrationId}": { "schema": "Integration", "description": "External service settings" }
+    "/integrations/{integrationId}": { "schema": "Integration", "description": "External service settings" },
+    "/taxIntegrations/{id}": { "schema": "TaxIntegration", "description": "Government tax connections" },
+    "/deliveryIntegrations/{id}": { "schema": "DeliveryIntegration", "description": "Delivery platform connections" }
   }
 }

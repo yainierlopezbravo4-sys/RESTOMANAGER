@@ -38,11 +38,13 @@ import {
   Settings,
   Printer,
   Barcode,
-  Shield
+  Shield,
+  Globe
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { Toaster } from 'sonner';
 import { User, UserRole } from './types';
 
 // Components
@@ -52,6 +54,7 @@ import Inventory from './components/Inventory';
 import Financials from './components/Financials';
 import Reports from './components/Reports';
 import Tools from './components/Tools';
+import Integrations from './components/Integrations';
 import SettingsComponent from './components/Settings';
 
 export default function App() {
@@ -275,11 +278,13 @@ export default function App() {
     { id: 'financials', label: 'Finanzas', icon: DollarSign, adminOnly: true },
     { id: 'reports', label: 'Cierres', icon: FileText, adminOnly: true },
     { id: 'tools', label: 'Herramientas', icon: Printer, adminOnly: true },
+    { id: 'integrations', label: 'Integraciones', icon: Globe, adminOnly: true },
     { id: 'settings', label: 'Configuración', icon: Settings, adminOnly: true },
   ].filter(item => !item.adminOnly || user.role === 'admin');
 
   return (
     <div className="min-h-screen bg-stone-50 flex font-sans text-stone-900">
+      <Toaster position="top-right" richColors />
       <aside 
         className={`${isSidebarOpen ? 'w-64' : 'w-20'} bg-white border-r border-stone-200 transition-all duration-300 flex flex-col h-screen sticky top-0`}
       >
@@ -364,10 +369,11 @@ export default function App() {
               {activeTab === 'financials' && user.role === 'admin' && <Financials user={user} />}
               {activeTab === 'reports' && user.role === 'admin' && <Reports user={user} />}
               {activeTab === 'tools' && user.role === 'admin' && <Tools user={user} />}
+              {activeTab === 'integrations' && user.role === 'admin' && <Integrations user={user} />}
               {activeTab === 'settings' && user.role === 'admin' && <SettingsComponent user={user} />}
               
               {/* Fallback for restricted access */}
-              {['inventory', 'financials', 'reports', 'tools', 'settings'].includes(activeTab) && user.role !== 'admin' && (
+              {['inventory', 'financials', 'reports', 'tools', 'integrations', 'settings'].includes(activeTab) && user.role !== 'admin' && (
                 <div className="flex flex-col items-center justify-center h-full text-stone-400 py-20">
                   <Shield size={48} className="mb-4 opacity-20" />
                   <p className="text-lg font-medium">Acceso Restringido</p>
